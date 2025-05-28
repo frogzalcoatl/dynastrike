@@ -1,0 +1,33 @@
+{
+	"name": "dynastrike",
+	"version": "1.0.0",
+	"description": "A general-purpose physics engine, primarily for polytanks.",
+	"main": "dist/dynastrike.cjs.js",
+	"module": "dist/dynastrike.esm.js",
+	"types": "dist/dynastrike.d.ts",
+	"scripts": {
+		"clean": "rimraf dist",
+		"build:types": "dts-bundle-generator -o dist/dynastrike.d.ts src/index.ts",
+		"build": "pnpm run clean && node build.cjs && pnpm run build:types",
+		"watch": "pnpm run clean && node build.cjs --watch",
+		"start": "node dist/dynastrike.cjs.js"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/xskutsu/dynastrike.git"
+	},
+	"author": {
+		"name": "xskutsu",
+		"url": "https://github.com/xskutsu"
+	},
+	"bugs": {
+		"url": "https://github.com/xskutsu/dynastrike"
+	},
+	"homepage": "https://github.com/xskutsu/dynastrike#readme",
+	"devDependencies": {
+		"dts-bundle-generator": "^9.5.1",
+		"esbuild": "^0.25.5",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.8.3"
+	}
+}
