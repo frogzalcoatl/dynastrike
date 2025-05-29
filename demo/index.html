@@ -22,27 +22,27 @@
 	<script src="../dist/dynastrike.global.js"></script>
 	<script>
 		const scene = new Dynastrike.Scene(1000 / 144);
-		for (let i = 0; i < 1; i++) {
-			const entity = new Dynastrike.Entity(500 * Math.random(), 500 * Math.random(), 6);
+		for (let i = 0; i < 100; i++) {
+			const entity = new Dynastrike.Entity(600 * Math.random(), 600 * Math.random(), 10);
 			scene.addEntity(entity);
 		}
 		const canvasElement = document.createElement("canvas");
-		canvasElement.width = 500;
-		canvasElement.height = 500;
+		canvasElement.width = 600;
+		canvasElement.height = 600;
 		document.body.appendChild(canvasElement);
 		const ctx = canvasElement.getContext("2d", { alpha: false, willReadFrequently: false, desynchronized: true });
 		ctx.imageSmoothingEnabled = false;
 		function animationFrame() {
 			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 			ctx.fillStyle = "#FFFFFF";
-			ctx.beginPath();
+			ctx.strokeStyle = "#FF0000";
 			for (const entity of scene.entities.values()) {
-				ctx.moveTo(entity.position.x + entity.radius, entity.position.y);
+				ctx.beginPath();
 				ctx.arc(entity.position.x, entity.position.y, entity.radius, 0, Math.PI * 2);
-				entity.velocity.x += 0.1;
+				ctx.closePath();
+				ctx.fill();
+				ctx.strokeRect(entity.aabb.minX, entity.aabb.minY, entity.aabb.maxX - entity.aabb.minX, entity.aabb.maxY - entity.aabb.minY);
 			}
-			ctx.closePath();
-			ctx.fill();
 			requestAnimationFrame(animationFrame);
 		}
 		requestAnimationFrame(animationFrame);
