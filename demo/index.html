@@ -21,12 +21,12 @@
 <body>
 	<script src="../dist/dynastrike.global.js"></script>
 	<script>
-		const scene = new Dynastrike.Scene();
-		for (let i = 0; i < 25; i++) {
-			const entity = new Dynastrike.Entity(600 * Math.random(), 600 * Math.random(), 5);
+		const scene = new Dynastrike.Scene({ minX: 0, minY: 0, maxX: 600, maxY: 600 });
+		for (let i = 0; i < 2000; i++) {
+			const entity = new Dynastrike.Entity(600 * Math.random(), 200 * Math.random(), 5);
 			scene.addEntity(entity);
 		}
-		const playerEntity = new Dynastrike.Entity(300, 300, 10);
+		const playerEntity = new Dynastrike.Entity(300, 500, 10);
 		scene.addEntity(playerEntity);
 		let commands = 0;
 		addEventListener("keydown", function (event) {
@@ -51,21 +51,47 @@
 		document.body.appendChild(canvasElement);
 		const ctx = canvasElement.getContext("2d", { alpha: false, willReadFrequently: false, desynchronized: true });
 		ctx.imageSmoothingEnabled = false;
-		function animationFrame() {
-			scene.tick();
+		function playerInput() {
 			if (commands & 1) playerEntity.velocity.y -= 0.1;
 			if (commands & 2) playerEntity.velocity.y += 0.1;
 			if (commands & 4) playerEntity.velocity.x -= 0.1;
 			if (commands & 8) playerEntity.velocity.x += 0.1;
-			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-			ctx.fillStyle = "#FFFFFF";
-			ctx.strokeStyle = "#FF0000";
-			for (const entity of scene.entities.values()) {
+		}
+		function drawQuadTree(quadTree = scene.quadTree) {
+			if (quadTree.children === null) {
+				ctx.fillStyle = "#00FF00";
+				ctx.strokeStyle = "#00FF00";
+				ctx.strokeRect(quadTree.box.minX, quadTree.box.minY, quadTree.box.maxX - quadTree.box.minX, quadTree.box.maxY - quadTree.box.minY);
+				const fontSize = (quadTree.box.maxX - quadTree.box.minX) * 0.2;
+				ctx.font = `${fontSize}px monospace`;
+				ctx.textAlign = "center";
+				ctx.fillText(`${quadTree.level}:${quadTree.entities.length}`, quadTree.box.minX + (quadTree.box.maxX - quadTree.box.minX) / 2, quadTree.box.minY + (quadTree.box.maxY - quadTree.box.minY) / 2);
+			} else {
+				drawQuadTree(quadTree.children.topLeft);
+				drawQuadTree(quadTree.children.topRight);
+				drawQuadTree(quadTree.children.bottomLeft);
+				drawQuadTree(quadTree.children.bottomRight);
+			}
+		}
+		function drawEntities() {
+			const length = scene.entities.length;
+			for (let i = 0; i < length; i++) {
+				const entity = scene.entities[i];
+				//ctx.strokeStyle = "#FF0000";
+				//ctx.strokeRect(entity.box.minX, entity.box.minY, entity.box.maxX - entity.box.minX, entity.box.maxY - entity.box.minY);
+				ctx.strokeStyle = "#FFFFFF";
 				ctx.beginPath();
 				ctx.arc(entity.position.x, entity.position.y, entity.radius, 0, Math.PI * 2);
 				ctx.closePath();
-				ctx.fill();
+				ctx.stroke();
 			}
+		}
+		function animationFrame() {
+			playerInput();
+			scene.tick();
+			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+			//drawQuadTree();
+			drawEntities();
 			requestAnimationFrame(animationFrame);
 		}
 		requestAnimationFrame(animationFrame);
