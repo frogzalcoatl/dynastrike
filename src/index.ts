@@ -33,7 +33,7 @@ export class Entity {
 		this.position = new Vector2(x, y);
 		this.velocity = new Vector2(0, 0);
 		this.radius = radius;
-		this.friction = 0.95;
+		this.friction = 1;
 		this.mass = 1;
 		this.isStatic = false;
 		this.box = {
@@ -256,7 +256,7 @@ export class Scene {
 	public quadTree: QuadTree;
 	constructor(box: Box) {
 		this.entities = [];
-		this.quadTree = new QuadTree(box, 5);
+		this.quadTree = new QuadTree(box, 7);
 	}
 
 	public addEntity(entity: Entity): number {
@@ -281,16 +281,13 @@ export class Scene {
 
 	public tick(): void {
 		this.quadTree.clear();
+		const processedCollisions: Set<number> = new Set<number>();
 		const length: number = this.entities.length;
 		for (let i: number = 0; i < length; i++) {
 			const instance: Entity = this.entities[i];
 			instance.tick();
-			this.quadTree.insert(instance);
-		}
-		const processedCollisions: Set<number> = new Set<number>();
-		for (let i: number = 0; i < length; i++) {
-			const instance: Entity = this.entities[i];
 			const potentialColliders: Set<Entity> = this.quadTree.query(instance.box);
+			this.quadTree.insert(instance);
 			for (const other of potentialColliders) {
 				if (instance.index === other.index) {
 					continue;
@@ -305,6 +302,5 @@ export class Scene {
 				}
 			}
 		}
-
 	}
 }
