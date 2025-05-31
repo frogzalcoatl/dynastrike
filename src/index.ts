@@ -19,6 +19,8 @@ export class Vector2 {
 }
 
 export class Entity {
+	private static indexTicker: number = 1;
+	public index: number;
 	public position: Vector2;
 	public velocity: Vector2;
 	public radius: number;
@@ -27,6 +29,7 @@ export class Entity {
 	public isStatic: boolean;
 	public box: Box;
 	constructor(x: number, y: number, radius: number) {
+		this.index = Entity.indexTicker++;
 		this.position = new Vector2(x, y);
 		this.velocity = new Vector2(0, 0);
 		this.radius = radius;
@@ -84,55 +87,55 @@ export class Entity {
 
 export class Collision {
 	public static collide(instance: Entity, other: Entity): void {
-		const distanceX = other.position.x - instance.position.x;
-		const distanceY = other.position.y - instance.position.y;
-		const distanceSquared = distanceX * distanceX + distanceY * distanceY;
-		const minimumDistance = instance.radius + other.radius;
+		const distanceX: number = other.position.x - instance.position.x;
+		const distanceY: number = other.position.y - instance.position.y;
+		const distanceSquared: number = distanceX * distanceX + distanceY * distanceY;
+		const minimumDistance: number = instance.radius + other.radius;
 		if (distanceSquared === 0 || distanceSquared >= minimumDistance * minimumDistance) {
 			return;
 		}
 		if (instance.isStatic && other.isStatic) {
 			return;
 		}
-		const distance = Math.sqrt(distanceSquared);
-		const invDistance = 1 / distance;
-		const normalX = distanceX * invDistance;
-		const normalY = distanceY * invDistance;
-		const overlap = minimumDistance - distance;
+		const distance: number = Math.sqrt(distanceSquared);
+		const inverseDistance: number = 1 / distance;
+		const normalX: number = distanceX * inverseDistance;
+		const normalY: number = distanceY * inverseDistance;
+		const overlap: number = minimumDistance - distance;
 		if (instance.isStatic) {
 			other.moveBy(normalX * overlap, normalY * overlap);
 		} else if (other.isStatic) {
 			instance.moveBy(-normalX * overlap, -normalY * overlap);
 		} else {
-			const totalMass = instance.mass + other.mass;
+			const totalMass: number = instance.mass + other.mass;
 			if (totalMass > 0) {
-				const invTotalMass = 1 / totalMass;
-				const instanceCorrectionFraction = other.mass * invTotalMass;
-				const otherCorrectionFraction = 1 - instanceCorrectionFraction;
+				const invTotalMass: number = 1 / totalMass;
+				const instanceCorrectionFraction: number = other.mass * invTotalMass;
+				const otherCorrectionFraction: number = 1 - instanceCorrectionFraction;
 				instance.moveBy(-normalX * overlap * instanceCorrectionFraction, -normalY * overlap * instanceCorrectionFraction);
 				other.moveBy(normalX * overlap * otherCorrectionFraction, normalY * overlap * otherCorrectionFraction);
 			} else {
-				const halfOverlap = overlap * 0.5;
+				const halfOverlap: number = overlap * 0.5;
 				instance.moveBy(-normalX * halfOverlap, -normalY * halfOverlap);
 				other.moveBy(normalX * halfOverlap, normalY * halfOverlap);
 			}
 		}
-		const relativeVelocityX = other.velocity.x - instance.velocity.x;
-		const relativeVelocityY = other.velocity.y - instance.velocity.y;
-		const velocityAlongNormal = relativeVelocityX * normalX + relativeVelocityY * normalY;
+		const relativeVelocityX: number = other.velocity.x - instance.velocity.x;
+		const relativeVelocityY: number = other.velocity.y - instance.velocity.y;
+		const velocityAlongNormal: number = relativeVelocityX * normalX + relativeVelocityY * normalY;
 		if (velocityAlongNormal > 0) {
 			return;
 		}
-		const instanceInverseMass = instance.isStatic ? 0 : 1 / instance.mass;
-		const otherInverseMass = other.isStatic ? 0 : 1 / other.mass;
+		const instanceInverseMass: number = instance.isStatic ? 0 : 1 / instance.mass;
+		const otherInverseMass: number = other.isStatic ? 0 : 1 / other.mass;
 		if (instanceInverseMass === 0 && otherInverseMass === 0) {
 			return;
 		}
-		const impulseDenominator = instanceInverseMass + otherInverseMass;
-		const invImpulseDenominator = 1 / impulseDenominator;
-		const impulseMagnitude = -2 * velocityAlongNormal * invImpulseDenominator;
-		const impulseX = impulseMagnitude * normalX;
-		const impulseY = impulseMagnitude * normalY;
+		const impulseDenominator: number = instanceInverseMass + otherInverseMass;
+		const invImpulseDenominator: number = 1 / impulseDenominator;
+		const impulseMagnitude: number = -2 * velocityAlongNormal * invImpulseDenominator;
+		const impulseX: number = impulseMagnitude * normalX;
+		const impulseY: number = impulseMagnitude * normalY;
 		if (!instance.isStatic) {
 			instance.velocity.x -= impulseX * instanceInverseMass;
 			instance.velocity.y -= impulseY * instanceInverseMass;
@@ -152,7 +155,7 @@ interface QuadTreeChildren {
 }
 
 class QuadTree {
-	public static maxEntities = 8;
+	public static maxEntities: number = 8;
 	public box: Box;
 	public level: number;
 	public children: QuadTreeChildren | null;
@@ -204,9 +207,9 @@ class QuadTree {
 		}
 	}
 
-	public query(box: Box, result: Set<Entity> = new Set()): Entity[] {
+	public query(box: Box, result: Set<Entity> = new Set<Entity>()): Set<Entity> {
 		if (this.children === null) {
-			for (let i = 0; i < this.entities.length; i++) {
+			for (let i: number = 0; i < this.entities.length; i++) {
 				const entity: Entity = this.entities[i];
 				if (boxesIntersect(entity.box, box)) {
 					result.add(entity);
@@ -226,40 +229,26 @@ class QuadTree {
 				this.children.bottomRight.query(box, result);
 			}
 		}
-		const output: Entity[] = [];
-		for (const entity of result) {
-			output.push(entity);
-		}
-		return output;
-	}
-
-	public collisions(): void {
-		if (this.children === null) {
-			const entities: Entity[] = this.entities.slice().sort((a, b) => a.box.minX - b.box.minX);
-			for (let i = 0; i < entities.length; i++) {
-				const instance: Entity = entities[i];
-				for (let j = i + 1; j < entities.length; j++) {
-					const other: Entity = entities[j];
-					if (other.box.minX > instance.box.maxX) {
-						break;
-					}
-					if (boxesIntersect(instance.box, other.box)) {
-						Collision.collide(instance, other);
-					}
-				}
-			}
-		} else {
-			this.children.topLeft.collisions();
-			this.children.topRight.collisions();
-			this.children.bottomLeft.collisions();
-			this.children.bottomRight.collisions();
-		}
+		return result;
 	}
 
 	public clear(): void {
 		this.entities = [];
 		this.children = null;
 	}
+}
+
+function getPairIndex(index1: number, index2: number): number {
+	let minimumIndex: number;
+	let maximumIndex: number;
+	if (index1 < index2) {
+		minimumIndex = index1;
+		maximumIndex = index2;
+	} else {
+		minimumIndex = index2;
+		maximumIndex = index1;
+	}
+	return maximumIndex * maximumIndex + minimumIndex;
 }
 
 export class Scene {
@@ -278,7 +267,7 @@ export class Scene {
 	}
 
 	public removeEntity(entity: Entity): boolean {
-		const index = this.entities.indexOf(entity);
+		const index: number = this.entities.indexOf(entity);
 		if (index === -1) {
 			return false;
 		}
@@ -291,12 +280,6 @@ export class Scene {
 	}
 
 	public tick(): void {
-		/*let deltaTime = 1;
-		if (this.lastTickTime !== -1) {
-			const currentTime = performance.now();
-			deltaTime = (currentTime - this.lastTickTime) / 10;
-			this.lastTickTime = currentTime;
-		}*/
 		this.quadTree.clear();
 		const length: number = this.entities.length;
 		for (let i: number = 0; i < length; i++) {
@@ -304,6 +287,24 @@ export class Scene {
 			instance.tick();
 			this.quadTree.insert(instance);
 		}
-		this.quadTree.collisions();
+		const processedCollisions: Set<number> = new Set<number>();
+		for (let i: number = 0; i < length; i++) {
+			const instance: Entity = this.entities[i];
+			const potentialColliders: Set<Entity> = this.quadTree.query(instance.box);
+			for (const other of potentialColliders) {
+				if (instance.index === other.index) {
+					continue;
+				}
+				const pairIndex: number = getPairIndex(instance.index, other.index);
+				if (processedCollisions.has(pairIndex)) {
+					continue;
+				}
+				processedCollisions.add(pairIndex);
+				if (boxesIntersect(instance.box, other.box)) {
+					Collision.collide(instance, other);
+				}
+			}
+		}
+
 	}
 }
