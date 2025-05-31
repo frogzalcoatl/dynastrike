@@ -9,13 +9,63 @@ export function boxesIntersect(instance: Box, other: Box): boolean {
 	return !(instance.minX >= other.maxX || instance.maxX <= other.minX || instance.minY >= other.maxY || instance.maxY <= other.minY);
 }
 
-export class Vector2 {
-	public x: number;
-	public y: number;
-	constructor(x: number, y: number) {
-		this.x = x;
-		this.y = y;
+export interface Vector2 {
+	x: number;
+	y: number;
+}
+
+function computeCentroid(points: number[]): Vector2 {
+	let centerX: number = 0;
+	let centerY: number = 0;
+	let totalCross: number = 0;
+	const length = points.length;
+	for (let i: number = 0, j: number = length - 2; i < length; j = i, i += 2) {
+		const currentX: number = points[i];
+		const currentY: number = points[i + 1];
+		const previousX: number = points[j];
+		const previousY: number = points[j + 1];
+		const cross: number = previousX * currentY - currentX * previousY;
+		totalCross += cross;
+		centerX += (previousX + currentX) * cross;
+		centerY += (previousY + currentY) * cross;
 	}
+	if (totalCross === 0) {
+		return {
+			x: 0,
+			y: 0
+		};
+	}
+	const factor: number = 1 / (3 * totalCross);
+	return {
+		x: centerX * factor,
+		y: centerY * factor
+	};
+}
+
+export function computeBox(points: number[]): Box {
+	const box: Box = {
+		minX: points[0],
+		minY: points[1],
+		maxX: points[0],
+		maxY: points[1]
+	};
+	for (let i: number = 2; i < points.length; i += 2) {
+		const pointX: number = 0;
+		const pointY: number = 0;
+		if (box.minX > pointX) {
+			box.minX = pointX;
+		}
+		if (box.minY > pointY) {
+			box.minY = pointY;
+		}
+		if (box.maxX < pointX) {
+			box.maxX = pointX;
+		}
+		if (box.maxY < pointY) {
+			box.maxY = pointY;
+		}
+	}
+	return box;
 }
 
 export class Entity {
@@ -24,16 +74,20 @@ export class Entity {
 	public position: Vector2;
 	public velocity: Vector2;
 	public radius: number;
-	public friction: number;
 	public mass: number;
 	public isStatic: boolean;
 	public box: Box;
 	constructor(x: number, y: number, radius: number) {
 		this.index = Entity.indexTicker++;
-		this.position = new Vector2(x, y);
-		this.velocity = new Vector2(0, 0);
+		this.position = {
+			x: x,
+			y: y
+		};
+		this.velocity = {
+			x: 0,
+			y: 0
+		};
 		this.radius = radius;
-		this.friction = 1;
 		this.mass = 1;
 		this.isStatic = false;
 		this.box = {
@@ -62,12 +116,6 @@ export class Entity {
 		this.box.maxY += y;
 	}
 
-	public tick(): void {
-		this.velocity.x *= this.friction;
-		this.velocity.y *= this.friction;
-		this.moveBy(this.velocity.x, this.velocity.y);
-	}
-
 	public scaleBy(factor: number): void {
 		this.radius *= factor;
 		this.box.minX = this.position.x - this.radius;
@@ -82,6 +130,10 @@ export class Entity {
 		this.box.minY = this.position.y - this.radius;
 		this.box.maxX = this.position.x + this.radius;
 		this.box.maxY = this.position.y + this.radius;
+	}
+
+	public tick(): void {
+		this.moveBy(this.velocity.x, this.velocity.y);
 	}
 }
 
