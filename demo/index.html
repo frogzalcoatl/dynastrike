@@ -77,8 +77,8 @@
 			const length = scene.entities.length;
 			for (let i = 0; i < length; i++) {
 				const entity = scene.entities[i];
-				//ctx.strokeStyle = "#FF0000";
-				//ctx.strokeRect(entity.box.minX, entity.box.minY, entity.box.maxX - entity.box.minX, entity.box.maxY - entity.box.minY);
+				ctx.strokeStyle = "#FF0000";
+				ctx.strokeRect(entity.box.minX, entity.box.minY, entity.box.maxX - entity.box.minX, entity.box.maxY - entity.box.minY);
 				ctx.strokeStyle = "#FFFFFF";
 				ctx.beginPath();
 				ctx.arc(entity.position.x, entity.position.y, entity.radius, 0, Math.PI * 2);

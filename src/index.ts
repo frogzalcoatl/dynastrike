@@ -23,12 +23,16 @@ export class Entity {
 	public velocity: Vector2;
 	public radius: number;
 	public friction: number;
+	public mass: number;
+	public isStatic: boolean;
 	public box: Box;
 	constructor(x: number, y: number, radius: number) {
 		this.position = new Vector2(x, y);
 		this.velocity = new Vector2(0, 0);
 		this.radius = radius;
-		this.friction = 1;
+		this.friction = 0.95;
+		this.mass = 1;
+		this.isStatic = false;
 		this.box = {
 			minX: this.position.x - radius,
 			minY: this.position.y - radius,
@@ -60,6 +64,22 @@ export class Entity {
 		this.velocity.y *= this.friction;
 		this.moveBy(this.velocity.x, this.velocity.y);
 	}
+
+	public scaleBy(factor: number): void {
+		this.radius *= factor;
+		this.box.minX = this.position.x - this.radius;
+		this.box.minY = this.position.y - this.radius;
+		this.box.maxX = this.position.x + this.radius;
+		this.box.maxY = this.position.y + this.radius;
+	}
+
+	public scaleTo(radius: number): void {
+		this.radius = radius;
+		this.box.minX = this.position.x - this.radius;
+		this.box.minY = this.position.y - this.radius;
+		this.box.maxX = this.position.x + this.radius;
+		this.box.maxY = this.position.y + this.radius;
+	}
 }
 
 export class Collision {
@@ -68,29 +88,59 @@ export class Collision {
 		const distanceY = other.position.y - instance.position.y;
 		const distanceSquared = distanceX * distanceX + distanceY * distanceY;
 		const minimumDistance = instance.radius + other.radius;
-		if (distanceSquared >= minimumDistance * minimumDistance) {
+		if (distanceSquared === 0 || distanceSquared >= minimumDistance * minimumDistance) {
 			return;
 		}
-		const distance = Math.sqrt(distanceSquared) || 1e-4;
-		const normalX = distanceX / distance;
-		const normalY = distanceY / distance;
+		if (instance.isStatic && other.isStatic) {
+			return;
+		}
+		const distance = Math.sqrt(distanceSquared);
+		const invDistance = 1 / distance;
+		const normalX = distanceX * invDistance;
+		const normalY = distanceY * invDistance;
 		const overlap = minimumDistance - distance;
-		const correction = overlap * 0.5;
-		instance.moveBy(normalX * -correction, normalY * -correction);
-		other.moveBy(normalX * correction, normalY * correction);
-		const rVelocityX = other.velocity.x - instance.velocity.x;
-		const rVelocityY = other.velocity.y - instance.velocity.y;
-		const velocityAlongNormal = rVelocityX * normalX + rVelocityY * normalY;
+		if (instance.isStatic) {
+			other.moveBy(normalX * overlap, normalY * overlap);
+		} else if (other.isStatic) {
+			instance.moveBy(-normalX * overlap, -normalY * overlap);
+		} else {
+			const totalMass = instance.mass + other.mass;
+			if (totalMass > 0) {
+				const invTotalMass = 1 / totalMass;
+				const instanceCorrectionFraction = other.mass * invTotalMass;
+				const otherCorrectionFraction = 1 - instanceCorrectionFraction;
+				instance.moveBy(-normalX * overlap * instanceCorrectionFraction, -normalY * overlap * instanceCorrectionFraction);
+				other.moveBy(normalX * overlap * otherCorrectionFraction, normalY * overlap * otherCorrectionFraction);
+			} else {
+				const halfOverlap = overlap * 0.5;
+				instance.moveBy(-normalX * halfOverlap, -normalY * halfOverlap);
+				other.moveBy(normalX * halfOverlap, normalY * halfOverlap);
+			}
+		}
+		const relativeVelocityX = other.velocity.x - instance.velocity.x;
+		const relativeVelocityY = other.velocity.y - instance.velocity.y;
+		const velocityAlongNormal = relativeVelocityX * normalX + relativeVelocityY * normalY;
 		if (velocityAlongNormal > 0) {
 			return;
 		}
-		const impulse = -(1 + 1) * velocityAlongNormal * 0.5;
-		const impulseX = impulse * normalX;
-		const impulseY = impulse * normalY;
-		instance.velocity.x -= impulseX;
-		instance.velocity.y -= impulseY;
-		other.velocity.x += impulseX;
-		other.velocity.y += impulseY;
+		const instanceInverseMass = instance.isStatic ? 0 : 1 / instance.mass;
+		const otherInverseMass = other.isStatic ? 0 : 1 / other.mass;
+		if (instanceInverseMass === 0 && otherInverseMass === 0) {
+			return;
+		}
+		const impulseDenominator = instanceInverseMass + otherInverseMass;
+		const invImpulseDenominator = 1 / impulseDenominator;
+		const impulseMagnitude = -2 * velocityAlongNormal * invImpulseDenominator;
+		const impulseX = impulseMagnitude * normalX;
+		const impulseY = impulseMagnitude * normalY;
+		if (!instance.isStatic) {
+			instance.velocity.x -= impulseX * instanceInverseMass;
+			instance.velocity.y -= impulseY * instanceInverseMass;
+		}
+		if (!other.isStatic) {
+			other.velocity.x += impulseX * otherInverseMass;
+			other.velocity.y += impulseY * otherInverseMass;
+		}
 	}
 }
 
@@ -103,7 +153,6 @@ interface QuadTreeChildren {
 
 class QuadTree {
 	public static maxEntities = 8;
-	public static maxLevels = 5;
 	public box: Box;
 	public level: number;
 	public children: QuadTreeChildren | null;
