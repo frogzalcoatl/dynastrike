@@ -7,9 +7,9 @@ export function generatePolygon(centerX: number, centerY: number, radius: number
 	return output;
 }
 
-export function generateStar(centerX: number, centerY: number, outerRadius: number, innerRadius: number, points: number[]): number[] {
+export function generateStar(centerX: number, centerY: number, outerRadius: number, innerRadius: number, points: number): number[] {
 	const output: number[] = [];
-	const numPoints: number = points.length;
+	const numPoints: number = points;
 	const step: number = Math.PI / numPoints;
 	for (let i: number = 0; i < numPoints * 2; i++) {
 		const radius: number = i % 2 === 0 ? outerRadius : innerRadius;
