@@ -27,7 +27,8 @@
 			scene.addEntity(entity);
 		}
 		const playerEntity = new Dynastrike.Entity(300, 500, 40);
-		playerEntity.isStatic = true;
+		playerEntity.isStatic = false;
+		playerEntity.mass = 20;
 		playerEntity.angularVelocity = 0.05;
 		scene.addEntity(playerEntity);
 		let commands = 0;
@@ -98,7 +99,8 @@
 		function animationFrame() {
 			playerInput();
 			scene.tick();
-			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+			ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+			ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
 			drawQuadTree();
 			drawEntities();
 			requestAnimationFrame(animationFrame);
