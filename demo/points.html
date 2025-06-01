@@ -287,15 +287,16 @@
 			const minY = box.minY;
 			const maxX = box.maxX;
 			const maxY = box.maxY;
-			const scale = 0.5 + Math.random() * 1.5;
+			const scaleX = 0.5 + Math.random() * 1.5;
+			const scaleY = scaleX;
 			const transformX = Math.random() * 200;
 			const transformY = Math.random() * 200;
 			const output = [];
 			for (let i = 0; i < points.length; i += 2) {
 				const originalX = points[i];
 				const originalY = points[i + 1];
-				const pointX = (originalX - minX) * scale + transformX;
-				const pointY = (originalY - minY) * scale + transformY;
+				const pointX = (originalX - minX) * scaleX + transformX;
+				const pointY = (originalY - minY) * scaleY + transformY;
 				output.push(pointX, pointY);
 			}
 			return output;
@@ -303,10 +304,31 @@
 		let entity = new Entity(WIDTH / 2, HEIGHT / 2, 200, [120, 180, 420, 500, 260, 420, 300, 780]);
 		let shapeIndex = Math.floor(Math.random() * 1000);
 		const shapes = [
-			() => generateStar(WIDTH / 2, HEIGHT / 2, 200, 80, 5),
-			() => generateHeart(WIDTH / 2, HEIGHT / 2, 12, 60),
-			() => generatePolygon(WIDTH / 2, HEIGHT / 2, 200, 6),
-			() => generateIrregularShape(WIDTH / 2, HEIGHT / 2, 200, 12)
+			() => generateStar(
+				WIDTH / 2,
+				HEIGHT / 2,
+				150 + Math.random() * 100,
+				40 + Math.random() * 80,
+				5 + Math.floor(Math.random() * 6)
+			),
+			() => generateHeart(
+				WIDTH / 2,
+				HEIGHT / 2,
+				8 + Math.random() * 10,
+				30 + Math.floor(Math.random() * 60)
+			),
+			() => generatePolygon(
+				WIDTH / 2,
+				HEIGHT / 2,
+				120 + Math.random() * 120,
+				3 + Math.floor(Math.random() * 8)
+			),
+			() => generateIrregularShape(
+				WIDTH / 2,
+				HEIGHT / 2,
+				100 + Math.random() * 120,
+				5 + Math.floor(Math.random() * 15)
+			)
 		];
 		setInterval(() => {
 			const shapePoints = shapes[shapeIndex % shapes.length]();
