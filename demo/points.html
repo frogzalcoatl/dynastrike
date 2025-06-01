@@ -208,7 +208,7 @@
 				points[jx] = pointX;
 				points[jy] = pointY;
 			}
-			return welzl(points, pointCount, new Float32Array(6), 0);
+			return welzl(points, pointCount, [0, 0, 0, 0, 0, 0], 0);
 		}
 		class Entity {
 			constructor(x, y, radius, points) {
@@ -244,14 +244,83 @@
 		}
 		const WIDTH = Math.min(window.innerWidth, window.innerHeight);
 		const HEIGHT = WIDTH;
-		const entity = new Entity(WIDTH / 2, HEIGHT / 2, 200, [120, 180, 420, 500, 260, 420, 300, 780]);
+		function generateStar(centerX, centerY, outerRadius, innerRadius, points) {
+			const output = [];
+			const step = Math.PI / points;
+			for (let i = 0; i < points * 2; i++) {
+				const radius = i % 2 === 0 ? outerRadius : innerRadius;
+				const angle = i * step - Math.PI / 2;
+				output.push(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+			}
+			return output;
+		}
+		function generateHeart(centerX, centerY, size, resolution) {
+			const output = [];
+			for (let i = 0; i < resolution; i++) {
+				const tan = (Math.PI * 2 * i) / resolution;
+				const pointX = size * 16 * Math.pow(Math.sin(tan), 3);
+				const pointY = -size * (13 * Math.cos(tan) - 5 * Math.cos(2 * tan) - 2 * Math.cos(3 * tan) - Math.cos(4 * tan));
+				output.push(centerX + pointX, centerY + pointY);
+			}
+			return output;
+		}
+		function generatePolygon(centerX, centerY, radius, sides) {
+			const output = [];
+			for (let i = 0; i < sides; i++) {
+				const angle = (2 * Math.PI * i) / sides - Math.PI / 2;
+				output.push(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+			}
+			return output;
+		}
+		function generateIrregularShape(centerX, centerY, radius, points) {
+			const output = [];
+			for (let i = 0; i < points; i++) {
+				const angle = (2 * Math.PI * i) / points;
+				const r = radius * (0.7 + 0.3 * Math.random());
+				output.push(centerX + r * Math.cos(angle), centerY + r * Math.sin(angle));
+			}
+			return output;
+		}
+		function fuckHerUp(points) {
+			const box = computeBox(points);
+			const minX = box.minX;
+			const minY = box.minY;
+			const maxX = box.maxX;
+			const maxY = box.maxY;
+			const scale = 0.5 + Math.random() * 1.5;
+			const transformX = Math.random() * 200;
+			const transformY = Math.random() * 200;
+			const output = [];
+			for (let i = 0; i < points.length; i += 2) {
+				const originalX = points[i];
+				const originalY = points[i + 1];
+				const pointX = (originalX - minX) * scale + transformX;
+				const pointY = (originalY - minY) * scale + transformY;
+				output.push(pointX, pointY);
+			}
+			return output;
+		}
+		let entity = new Entity(WIDTH / 2, HEIGHT / 2, 200, [120, 180, 420, 500, 260, 420, 300, 780]);
+		let shapeIndex = Math.floor(Math.random() * 1000);
+		const shapes = [
+			() => generateStar(WIDTH / 2, HEIGHT / 2, 200, 80, 5),
+			() => generateHeart(WIDTH / 2, HEIGHT / 2, 12, 60),
+			() => generatePolygon(WIDTH / 2, HEIGHT / 2, 200, 6),
+			() => generateIrregularShape(WIDTH / 2, HEIGHT / 2, 200, 12)
+		];
+		setInterval(() => {
+			const shapePoints = shapes[shapeIndex % shapes.length]();
+			const deformedPoints = fuckHerUp(shapePoints);
+			entity = new Entity(WIDTH / 2, HEIGHT / 2, 200, deformedPoints);
+			shapeIndex++;
+		}, 750);
 		const canvasElement = document.createElement("canvas");
 		canvasElement.width = WIDTH;
 		canvasElement.height = HEIGHT;
 		const ctx = canvasElement.getContext("2d", { alpha: false, willReadFrequently: false, desynchronized: true });
 		ctx.imageSmoothingEnabled = false;
 		function animationFrame() {
-			entity.turnBy(0.01);
+			entity.turnBy(0.006);
 			ctx.clearRect(0, 0, WIDTH, HEIGHT);
 			ctx.strokeStyle = "#00FF00";
 			ctx.beginPath();
