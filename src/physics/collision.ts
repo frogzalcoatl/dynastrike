@@ -22,33 +22,17 @@ export class Collision {
 		} else if (other.isStatic) {
 			instance.moveBy(-normalX * overlap, -normalY * overlap);
 		} else {
-			const totalMass: number = instance.mass + other.mass;
-			if (totalMass > 0) {
-				const invTotalMass: number = 1 / totalMass;
-				const instanceCorrectionFraction: number = other.mass * invTotalMass;
-				const otherCorrectionFraction: number = 1 - instanceCorrectionFraction;
-				instance.moveBy(-normalX * overlap * instanceCorrectionFraction, -normalY * overlap * instanceCorrectionFraction);
-				other.moveBy(normalX * overlap * otherCorrectionFraction, normalY * overlap * otherCorrectionFraction);
-			} else {
-				const halfOverlap: number = overlap * 0.5;
-				instance.moveBy(-normalX * halfOverlap, -normalY * halfOverlap);
-				other.moveBy(normalX * halfOverlap, normalY * halfOverlap);
-			}
+			const inverseTotalMass: number = 1 / (instance.mass + other.mass);
+			const instanceCorrectionFraction: number = other.mass * inverseTotalMass;
+			const otherCorrectionFraction: number = instance.mass * inverseTotalMass;
+			instance.moveBy(-normalX * overlap * instanceCorrectionFraction, -normalY * overlap * instanceCorrectionFraction);
+			other.moveBy(normalX * overlap * otherCorrectionFraction, normalY * overlap * otherCorrectionFraction);
 		}
 		const relativeVelocityX: number = other.velocity.x - instance.velocity.x;
 		const relativeVelocityY: number = other.velocity.y - instance.velocity.y;
-		const velocityAlongNormal: number = relativeVelocityX * normalX + relativeVelocityY * normalY;
-		if (velocityAlongNormal > 0) {
-			return;
-		}
-		const instanceInverseMass: number = instance.isStatic ? 0 : 1 / instance.mass;
-		const otherInverseMass: number = other.isStatic ? 0 : 1 / other.mass;
-		if (instanceInverseMass === 0 && otherInverseMass === 0) {
-			return;
-		}
-		const impulseDenominator: number = instanceInverseMass + otherInverseMass;
-		const invImpulseDenominator: number = 1 / impulseDenominator;
-		const impulseMagnitude: number = -2 * velocityAlongNormal * invImpulseDenominator;
+		const instanceInverseMass: number = 1 / instance.mass;
+		const otherInverseMass: number = 1 / other.mass;
+		const impulseMagnitude: number = -2 * (relativeVelocityX * normalX + relativeVelocityY * normalY) * (1 / (instanceInverseMass + otherInverseMass));
 		const impulseX: number = impulseMagnitude * normalX;
 		const impulseY: number = impulseMagnitude * normalY;
 		if (!instance.isStatic) {

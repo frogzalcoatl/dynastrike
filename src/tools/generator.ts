@@ -7,12 +7,13 @@ export function generatePolygon(centerX: number, centerY: number, radius: number
 	return output;
 }
 
-export function generateStar(centerX: number, centerY: number, outerRadius: number, innerRadius: number, points: number): number[] {
+export function generateStar(centerX: number, centerY: number, size: number, outerRadius: number, innerRadius: number, points: number): number[] {
 	const output: number[] = [];
-	const numPoints: number = points;
-	const step: number = Math.PI / numPoints;
-	for (let i: number = 0; i < numPoints * 2; i++) {
-		const radius: number = i % 2 === 0 ? outerRadius : innerRadius;
+	const scaledOuter = outerRadius * size;
+	const scaledInner = innerRadius * size;
+	const step: number = Math.PI / points;
+	for (let i: number = 0; i < points * 2; i++) {
+		const radius: number = i % 2 === 0 ? scaledOuter : scaledInner;
 		const angle: number = i * step - Math.PI / 2;
 		output.push(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
 	}

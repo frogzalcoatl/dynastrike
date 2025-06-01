@@ -118,7 +118,7 @@ export class Entity {
 	}
 
 	public tick(): void {
-		this.moveBy(this.velocity.x, this.velocity.y);
+		this.moveBy(this.velocity.x *= 0.9, this.velocity.y *= 0.9);
 		this.turnBy(this.angularVelocity);
 	}
 }
