@@ -1,3 +1,5 @@
+const TAU = Math.PI * 2;
+
 export interface Box {
 	minX: number;
 	minY: number;
@@ -77,6 +79,8 @@ export class Entity {
 	public mass: number;
 	public isStatic: boolean;
 	public box: Box;
+	public angle: number;
+	public angularVelocity: number;
 	constructor(x: number, y: number, radius: number) {
 		this.index = Entity.indexTicker++;
 		this.position = {
@@ -96,15 +100,8 @@ export class Entity {
 			maxX: this.position.x + radius,
 			maxY: this.position.y + radius
 		};
-	}
-
-	public moveTo(x: number, y: number): void {
-		this.position.x = x;
-		this.position.y = y;
-		this.box.minX = x - this.radius;
-		this.box.minY = y - this.radius;
-		this.box.maxX = x + this.radius;
-		this.box.maxY = y + this.radius;
+		this.angle = 0;
+		this.angularVelocity = 0;
 	}
 
 	public moveBy(x: number, y: number): void {
@@ -124,16 +121,13 @@ export class Entity {
 		this.box.maxY = this.position.y + this.radius;
 	}
 
-	public scaleTo(radius: number): void {
-		this.radius = radius;
-		this.box.minX = this.position.x - this.radius;
-		this.box.minY = this.position.y - this.radius;
-		this.box.maxX = this.position.x + this.radius;
-		this.box.maxY = this.position.y + this.radius;
+	public turnBy(radians: number): void {
+		this.angle = (((this.angle + radians) % TAU) + TAU) % TAU;
 	}
 
 	public tick(): void {
 		this.moveBy(this.velocity.x, this.velocity.y);
+		this.turnBy(this.angularVelocity);
 	}
 }
 

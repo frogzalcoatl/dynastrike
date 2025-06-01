@@ -22,11 +22,13 @@
 	<script src="../dist/dynastrike.global.js"></script>
 	<script>
 		const scene = new Dynastrike.Scene({ minX: 0, minY: 0, maxX: 600, maxY: 600 });
-		for (let i = 0; i < 2000; i++) {
-			const entity = new Dynastrike.Entity(600 * Math.random(), 200 * Math.random(), 5);
+		for (let i = 0; i < 500; i++) {
+			const entity = new Dynastrike.Entity(600 * Math.random(), 400 * Math.random(), 10);
 			scene.addEntity(entity);
 		}
-		const playerEntity = new Dynastrike.Entity(300, 500, 10);
+		const playerEntity = new Dynastrike.Entity(300, 500, 40);
+		playerEntity.isStatic = true;
+		playerEntity.angularVelocity = 0.05;
 		scene.addEntity(playerEntity);
 		let commands = 0;
 		addEventListener("keydown", function (event) {
@@ -59,12 +61,13 @@
 		}
 		function drawQuadTree(quadTree = scene.quadTree) {
 			if (quadTree.children === null) {
-				ctx.fillStyle = "#00FF00";
 				ctx.strokeStyle = "#00FF00";
 				ctx.strokeRect(quadTree.box.minX, quadTree.box.minY, quadTree.box.maxX - quadTree.box.minX, quadTree.box.maxY - quadTree.box.minY);
+				return;
 				const fontSize = (quadTree.box.maxX - quadTree.box.minX) * 0.2;
 				ctx.font = `${fontSize}px monospace`;
 				ctx.textAlign = "center";
+				ctx.fillStyle = "#00FF00";
 				ctx.fillText(`${quadTree.level}:${quadTree.entities.length}`, quadTree.box.minX + (quadTree.box.maxX - quadTree.box.minX) / 2, quadTree.box.minY + (quadTree.box.maxY - quadTree.box.minY) / 2);
 			} else {
 				drawQuadTree(quadTree.children.topLeft);
@@ -84,13 +87,19 @@
 				ctx.arc(entity.position.x, entity.position.y, entity.radius, 0, Math.PI * 2);
 				ctx.closePath();
 				ctx.stroke();
+				ctx.strokeStyle = "#0000FF";
+				ctx.beginPath();
+				ctx.moveTo(entity.position.x, entity.position.y);
+				ctx.lineTo(entity.position.x + entity.radius * Math.cos(entity.angle), entity.position.y + entity.radius * Math.sin(entity.angle));
+				ctx.closePath();
+				ctx.stroke();
 			}
 		}
 		function animationFrame() {
 			playerInput();
 			scene.tick();
 			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-			//drawQuadTree();
+			drawQuadTree();
 			drawEntities();
 			requestAnimationFrame(animationFrame);
 		}
