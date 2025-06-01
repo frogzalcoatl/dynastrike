@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Points Demo</title>
+	<style>
+		body {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			width: 100vw;
+			height: 100vh;
+			margin: 0;
+			background-color: #101010;
+		}
+	</style>
+</head>
+
+<body>
+	<script>
+		function computeBox(points) {
+			if (points.length === 0) {
+				return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+			}
+			const box = {
+				minX: points[0],
+				minY: points[1],
+				maxX: points[0],
+				maxY: points[1]
+			};
+			for (let i = 2; i < points.length; i += 2) {
+				const pointX = points[i];
+				const pointY = points[i + 1];
+				if (box.minX > pointX) box.minX = pointX;
+				if (box.minY > pointY) box.minY = pointY;
+				if (box.maxX < pointX) box.maxX = pointX;
+				if (box.maxY < pointY) box.maxY = pointY;
+			}
+			return box;
+		}
+		function circleFromRadius(boundary, size) {
+			if (size === 0) {
+				return {
+					x: 0,
+					y: 0,
+					radius: 0
+				};
+			}
+			if (size === 2) {
+				return {
+					x: boundary[0],
+					y: boundary[1],
+					radius: 0
+				};
+			}
+			if (size === 4) {
+				const instancePointX = boundary[0];
+				const instancePointY = boundary[1];
+				const otherPointX = boundary[2];
+				const otherPointY = boundary[3];
+				const distanceX = otherPointX - instancePointX;
+				const distanceY = otherPointY - instancePointY;
+				return {
+					x: (instancePointX + otherPointX) / 2,
+					y: (instancePointY + otherPointY) / 2,
+					radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) / 2
+				};
+			}
+			const point1X = boundary[0];
+			const point1Y = boundary[1];
+			const point2X = boundary[2];
+			const point2Y = boundary[3];
+			const point3X = boundary[4];
+			const point3Y = boundary[5];
+			const deltaX12 = point1X - point2X;
+			const deltaY12 = point1Y - point2Y;
+			const deltaX23 = point2X - point3X;
+			const deltaY23 = point2Y - point3Y;
+			const deltaX31 = point3X - point1X;
+			const deltaY31 = point3Y - point1Y;
+			const squaredDistance12 = deltaX12 * deltaX12 + deltaY12 * deltaY12;
+			const squaredDistance23 = deltaX23 * deltaX23 + deltaY23 * deltaY23;
+			const squaredDistance31 = deltaX31 * deltaX31 + deltaY31 * deltaY31;
+			if (squaredDistance12 < 1e-12 && squaredDistance23 < 1e-12 && squaredDistance31 < 1e-12) {
+				return {
+					x: point1X,
+					y: point1Y,
+					radius: 0
+				};
+			}
+			if (squaredDistance12 < 1e-12 && squaredDistance23 < 1e-12) {
+				return {
+					x: point1X,
+					y: point1Y,
+					radius: 0
+				};
+			}
+			if (squaredDistance12 < 1e-12) {
+				const distanceX = point3X - point1X;
+				const distanceY = point3Y - point1Y;
+				return {
+					x: (point1X + point3X) / 2,
+					y: (point1Y + point3Y) / 2,
+					radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) / 2
+				}
+			}
+			if (squaredDistance23 < 1e-12) {
+				const distanceX = point1X - point2X;
+				const distanceY = point1Y - point2Y;
+				return {
+					x: (point2X + point1X) / 2,
+					y: (point2Y + point1Y) / 2,
+					radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) / 2
+				};
+			}
+			if (squaredDistance31 < 1e-12) {
+				const distanceX = point2X - point3X;
+				const distanceY = point2Y - point3Y;
+				return {
+					x: (point3X + point2X) / 2,
+					y: (point3Y + point2Y) / 2,
+					radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) / 2
+				};
+			}
+			let maxSquaredSide = squaredDistance12;
+			let farPointUX = point1X;
+			let farPointUY = point1Y;
+			let farPointVX = point2X;
+			let farPointVY = point2Y;
+			if (squaredDistance23 > maxSquaredSide) {
+				maxSquaredSide = squaredDistance23;
+				farPointUX = point2X;
+				farPointUY = point2Y;
+				farPointVX = point3X;
+				farPointVY = point3Y;
+			}
+			if (squaredDistance31 > maxSquaredSide) {
+				maxSquaredSide = squaredDistance31;
+				farPointUX = point3X;
+				farPointUY = point3Y;
+				farPointVX = point1X;
+				farPointVY = point1Y;
+			}
+			if (maxSquaredSide > squaredDistance12 + squaredDistance23 + squaredDistance31 - maxSquaredSide + 1e-12) {
+				return {
+					x: (farPointUX + farPointVX) / 2,
+					y: (farPointUY + farPointVY) / 2,
+					radius: Math.sqrt(maxSquaredSide) / 2
+				};
+			}
+			const determinant = 2 * (point1X * (point2Y - point3Y) + point2X * (point3Y - point1Y) + point3X * (point1Y - point2Y));
+			if (Math.abs(determinant) < 1e-12) {
+				return {
+					x: (farPointUX + farPointVX) / 2,
+					y: (farPointUY + farPointVY) / 2,
+					radius: Math.sqrt(maxSquaredSide) / 2
+				};
+			}
+			const squaredLength1 = point1X * point1X + point1Y * point1Y;
+			const squaredLength2 = point2X * point2X + point2Y * point2Y;
+			const squaredLength3 = point3X * point3X + point3Y * point3Y;
+			const circumcenterX = (squaredLength1 * (point2Y - point3Y) + squaredLength2 * (point3Y - point1Y) + squaredLength3 * (point1Y - point2Y)) / determinant;
+			const circumcenterY = (squaredLength1 * (point3X - point2X) + squaredLength2 * (point1X - point3X) + squaredLength3 * (point2X - point1X)) / determinant;
+			const distanceCenterX = point1X - circumcenterX;
+			const distanceCenterY = point1Y - circumcenterY;
+			return {
+				x: circumcenterX,
+				y: circumcenterY,
+				radius: Math.sqrt(distanceCenterX * distanceCenterX + distanceCenterY * distanceCenterY)
+			};
+		}
+		function welzl(points, pointCount, boundary, size) {
+			if (pointCount === 0 || size === 6) {
+				return circleFromRadius(boundary, size);
+			}
+			const flatIndex = (pointCount - 1) << 1;
+			const pointX = points[flatIndex];
+			const pointY = points[flatIndex + 1];
+			const circleCandidate = welzl(points, pointCount - 1, boundary, size);
+			const deltaPointX = pointX - circleCandidate.x;
+			const deltaPointY = pointY - circleCandidate.y;
+			if (circleCandidate.radius > 0 && deltaPointX * deltaPointX + deltaPointY * deltaPointY <= circleCandidate.radius * circleCandidate.radius + 1e-9) {
+				return circleCandidate;
+			}
+			boundary[size] = pointX;
+			boundary[size + 1] = pointY;
+			const circleWithPoint = welzl(points, pointCount - 1, boundary, size + 2);
+			return circleWithPoint;
+		}
+		function computeMEC(points) {
+			const totalCoordinatesLength = points.length;
+			const pointCount = totalCoordinatesLength >> 1;
+			for (let i = pointCount - 1; i > 0; --i) {
+				const j = (Math.random() * (i + 1)) | 0;
+				if (j === i) {
+					continue;
+				}
+				const ix = i << 1;
+				const iy = ix + 1;
+				const jx = j << 1;
+				const jy = jx + 1;
+				const pointX = points[ix];
+				const pointY = points[iy];
+				points[ix] = points[jx];
+				points[iy] = points[jy];
+				points[jx] = pointX;
+				points[jy] = pointY;
+			}
+			return welzl(points, pointCount, new Float32Array(6), 0);
+		}
+		class Entity {
+			constructor(x, y, radius, points) {
+				this.x = x;
+				this.y = y;
+				this.radius = radius;
+				this.angle = 0;
+				this.points = [];
+				const minimalEnclosingCircle = computeMEC(points.slice());
+				const scaleFactor = minimalEnclosingCircle.radius < 1e-9 ? 0 : this.radius / minimalEnclosingCircle.radius;
+				for (let i = 0; i < points.length; i += 2) {
+					const relativeX = (points[i] - minimalEnclosingCircle.x) * scaleFactor;
+					const relativeY = (points[i + 1] - minimalEnclosingCircle.y) * scaleFactor;
+					this.points.push(relativeX + this.x, relativeY + this.y);
+				}
+				this.box = computeBox(this.points);
+			}
+
+			turnBy(radians) {
+				this.angle += radians;
+				const cos = Math.cos(radians);
+				const sin = Math.sin(radians);
+				for (let i = 0; i < this.points.length; i += 2) {
+					const relativeX = this.points[i] - this.x;
+					const relativeY = this.points[i + 1] - this.y;
+					const rotatedX = relativeX * cos - relativeY * sin;
+					const rotatedY = relativeX * sin + relativeY * cos;
+					this.points[i] = rotatedX + this.x;
+					this.points[i + 1] = rotatedY + this.y;
+				}
+				this.box = computeBox(this.points);
+			}
+		}
+		const WIDTH = Math.min(window.innerWidth, window.innerHeight);
+		const HEIGHT = WIDTH;
+		const entity = new Entity(WIDTH / 2, HEIGHT / 2, 200, [120, 180, 420, 500, 260, 420, 300, 780]);
+		const canvasElement = document.createElement("canvas");
+		canvasElement.width = WIDTH;
+		canvasElement.height = HEIGHT;
+		const ctx = canvasElement.getContext("2d", { alpha: false, willReadFrequently: false, desynchronized: true });
+		ctx.imageSmoothingEnabled = false;
+		function animationFrame() {
+			entity.turnBy(0.01);
+			ctx.clearRect(0, 0, WIDTH, HEIGHT);
+			ctx.strokeStyle = "#00FF00";
+			ctx.beginPath();
+			ctx.arc(entity.x, entity.y, entity.radius, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.stroke();
+			ctx.strokeStyle = "#FF0000";
+			ctx.strokeRect(entity.box.minX, entity.box.minY, entity.box.maxX - entity.box.minX, entity.box.maxY - entity.box.minY);
+			ctx.strokeStyle = "#0000FF";
+			ctx.beginPath();
+			ctx.moveTo(entity.x, entity.y);
+			ctx.lineTo(entity.x + entity.radius * Math.cos(entity.angle), entity.y + entity.radius * Math.sin(entity.angle));
+			ctx.closePath();
+			ctx.stroke();
+			ctx.strokeStyle = "#FFFFFF";
+			ctx.beginPath();
+			ctx.moveTo(entity.points[0], entity.points[1]);
+			for (let i = 2; i < entity.points.length; i += 2) {
+				ctx.lineTo(entity.points[i], entity.points[i + 1]);
+			}
+			ctx.closePath();
+			ctx.stroke();
+			requestAnimationFrame(animationFrame);
+		}
+		document.body.appendChild(canvasElement);
+		animationFrame();
+	</script>
+</body>
+
+</html>
