@@ -1,352 +1,38 @@
-const TAU = Math.PI * 2;
+export {
+	Box,
+	boxesIntersect,
+	computeBox
+} from "./geometry/box";
 
-export interface Box {
-	minX: number;
-	minY: number;
-	maxX: number;
-	maxY: number;
-}
+export {
+	Circle,
+	circleFromRadius,
+	computeMEC,
+	welzl
+} from "./geometry/mec";
 
-export function boxesIntersect(instance: Box, other: Box): boolean {
-	return !(instance.minX >= other.maxX || instance.maxX <= other.minX || instance.minY >= other.maxY || instance.maxY <= other.minY);
-}
+export {
+	Vector2
+} from "./geometry/vector";
 
-export interface Vector2 {
-	x: number;
-	y: number;
-}
+export {
+	QuadTree
+} from "./physics/quadtree";
 
-function computeCentroid(points: number[]): Vector2 {
-	let centerX: number = 0;
-	let centerY: number = 0;
-	let totalCross: number = 0;
-	const length = points.length;
-	for (let i: number = 0, j: number = length - 2; i < length; j = i, i += 2) {
-		const currentX: number = points[i];
-		const currentY: number = points[i + 1];
-		const previousX: number = points[j];
-		const previousY: number = points[j + 1];
-		const cross: number = previousX * currentY - currentX * previousY;
-		totalCross += cross;
-		centerX += (previousX + currentX) * cross;
-		centerY += (previousY + currentY) * cross;
-	}
-	if (totalCross === 0) {
-		return {
-			x: 0,
-			y: 0
-		};
-	}
-	const factor: number = 1 / (3 * totalCross);
-	return {
-		x: centerX * factor,
-		y: centerY * factor
-	};
-}
+export {
+	Scene
+} from "./scene/scene";
 
-export function computeBox(points: number[]): Box {
-	const box: Box = {
-		minX: points[0],
-		minY: points[1],
-		maxX: points[0],
-		maxY: points[1]
-	};
-	for (let i: number = 2; i < points.length; i += 2) {
-		const pointX: number = 0;
-		const pointY: number = 0;
-		if (box.minX > pointX) {
-			box.minX = pointX;
-		}
-		if (box.minY > pointY) {
-			box.minY = pointY;
-		}
-		if (box.maxX < pointX) {
-			box.maxX = pointX;
-		}
-		if (box.maxY < pointY) {
-			box.maxY = pointY;
-		}
-	}
-	return box;
-}
+export {
+	Entity
+} from "./entity/entity";
 
-export class Entity {
-	private static indexTicker: number = 1;
-	public index: number;
-	public position: Vector2;
-	public velocity: Vector2;
-	public radius: number;
-	public mass: number;
-	public isStatic: boolean;
-	public box: Box;
-	public angle: number;
-	public angularVelocity: number;
-	constructor(x: number, y: number, radius: number) {
-		this.index = Entity.indexTicker++;
-		this.position = {
-			x: x,
-			y: y
-		};
-		this.velocity = {
-			x: 0,
-			y: 0
-		};
-		this.radius = radius;
-		this.mass = 1;
-		this.isStatic = false;
-		this.box = {
-			minX: this.position.x - radius,
-			minY: this.position.y - radius,
-			maxX: this.position.x + radius,
-			maxY: this.position.y + radius
-		};
-		this.angle = 0;
-		this.angularVelocity = 0;
-	}
-
-	public moveBy(x: number, y: number): void {
-		this.position.x += x;
-		this.position.y += y;
-		this.box.minX += x;
-		this.box.minY += y;
-		this.box.maxX += x;
-		this.box.maxY += y;
-	}
-
-	public scaleBy(factor: number): void {
-		this.radius *= factor;
-		this.box.minX = this.position.x - this.radius;
-		this.box.minY = this.position.y - this.radius;
-		this.box.maxX = this.position.x + this.radius;
-		this.box.maxY = this.position.y + this.radius;
-	}
-
-	public turnBy(radians: number): void {
-		this.angle = (((this.angle + radians) % TAU) + TAU) % TAU;
-	}
-
-	public tick(): void {
-		this.moveBy(this.velocity.x, this.velocity.y);
-		this.turnBy(this.angularVelocity);
-	}
-}
-
-export class Collision {
-	public static collide(instance: Entity, other: Entity): void {
-		const distanceX: number = other.position.x - instance.position.x;
-		const distanceY: number = other.position.y - instance.position.y;
-		const distanceSquared: number = distanceX * distanceX + distanceY * distanceY;
-		const minimumDistance: number = instance.radius + other.radius;
-		if (distanceSquared === 0 || distanceSquared >= minimumDistance * minimumDistance) {
-			return;
-		}
-		if (instance.isStatic && other.isStatic) {
-			return;
-		}
-		const distance: number = Math.sqrt(distanceSquared);
-		const inverseDistance: number = 1 / distance;
-		const normalX: number = distanceX * inverseDistance;
-		const normalY: number = distanceY * inverseDistance;
-		const overlap: number = minimumDistance - distance;
-		if (instance.isStatic) {
-			other.moveBy(normalX * overlap, normalY * overlap);
-		} else if (other.isStatic) {
-			instance.moveBy(-normalX * overlap, -normalY * overlap);
-		} else {
-			const totalMass: number = instance.mass + other.mass;
-			if (totalMass > 0) {
-				const invTotalMass: number = 1 / totalMass;
-				const instanceCorrectionFraction: number = other.mass * invTotalMass;
-				const otherCorrectionFraction: number = 1 - instanceCorrectionFraction;
-				instance.moveBy(-normalX * overlap * instanceCorrectionFraction, -normalY * overlap * instanceCorrectionFraction);
-				other.moveBy(normalX * overlap * otherCorrectionFraction, normalY * overlap * otherCorrectionFraction);
-			} else {
-				const halfOverlap: number = overlap * 0.5;
-				instance.moveBy(-normalX * halfOverlap, -normalY * halfOverlap);
-				other.moveBy(normalX * halfOverlap, normalY * halfOverlap);
-			}
-		}
-		const relativeVelocityX: number = other.velocity.x - instance.velocity.x;
-		const relativeVelocityY: number = other.velocity.y - instance.velocity.y;
-		const velocityAlongNormal: number = relativeVelocityX * normalX + relativeVelocityY * normalY;
-		if (velocityAlongNormal > 0) {
-			return;
-		}
-		const instanceInverseMass: number = instance.isStatic ? 0 : 1 / instance.mass;
-		const otherInverseMass: number = other.isStatic ? 0 : 1 / other.mass;
-		if (instanceInverseMass === 0 && otherInverseMass === 0) {
-			return;
-		}
-		const impulseDenominator: number = instanceInverseMass + otherInverseMass;
-		const invImpulseDenominator: number = 1 / impulseDenominator;
-		const impulseMagnitude: number = -2 * velocityAlongNormal * invImpulseDenominator;
-		const impulseX: number = impulseMagnitude * normalX;
-		const impulseY: number = impulseMagnitude * normalY;
-		if (!instance.isStatic) {
-			instance.velocity.x -= impulseX * instanceInverseMass;
-			instance.velocity.y -= impulseY * instanceInverseMass;
-		}
-		if (!other.isStatic) {
-			other.velocity.x += impulseX * otherInverseMass;
-			other.velocity.y += impulseY * otherInverseMass;
-		}
-	}
-}
-
-interface QuadTreeChildren {
-	topLeft: QuadTree;
-	topRight: QuadTree;
-	bottomLeft: QuadTree;
-	bottomRight: QuadTree;
-}
-
-class QuadTree {
-	public static maxEntities: number = 8;
-	public box: Box;
-	public level: number;
-	public children: QuadTreeChildren | null;
-	public entities: Entity[];
-	constructor(box: Box, level: number) {
-		this.box = box;
-		this.level = level;
-		this.children = null;
-		this.entities = [];
-	}
-
-	public split(): void {
-		const halfWidth: number = (this.box.maxX - this.box.minX) / 2;
-		const halfHeight: number = (this.box.maxY - this.box.minY) / 2;
-		const middleX: number = this.box.minX + halfWidth;
-		const middleY: number = this.box.minY + halfHeight;
-		const level: number = this.level - 1;
-		this.children = {
-			topLeft: new QuadTree({ minX: this.box.minX, minY: this.box.minY, maxX: middleX, maxY: middleY }, level),
-			topRight: new QuadTree({ minX: middleX, minY: this.box.minY, maxX: this.box.maxX, maxY: middleY }, level),
-			bottomLeft: new QuadTree({ minX: this.box.minX, minY: middleY, maxX: middleX, maxY: this.box.maxY }, level),
-			bottomRight: new QuadTree({ minX: middleX, minY: middleY, maxX: this.box.maxX, maxY: this.box.maxY }, level)
-		};
-		for (let i: number = 0; i < this.entities.length; i++) {
-			this.insert(this.entities[i]);
-		}
-		this.entities = [];
-	}
-
-	public insert(entity: Entity): void {
-		if (this.children === null) {
-			this.entities.push(entity);
-			if (this.level > 0 && this.entities.length > 8) {
-				this.split();
-			}
-			return;
-		}
-		if (boxesIntersect(this.children.topLeft.box, entity.box)) {
-			this.children.topLeft.insert(entity);
-		}
-		if (boxesIntersect(this.children.topRight.box, entity.box)) {
-			this.children.topRight.insert(entity);
-		}
-		if (boxesIntersect(this.children.bottomLeft.box, entity.box)) {
-			this.children.bottomLeft.insert(entity);
-		}
-		if (boxesIntersect(this.children.bottomRight.box, entity.box)) {
-			this.children.bottomRight.insert(entity);
-		}
-	}
-
-	public query(box: Box, result: Set<Entity> = new Set<Entity>()): Set<Entity> {
-		if (this.children === null) {
-			for (let i: number = 0; i < this.entities.length; i++) {
-				const entity: Entity = this.entities[i];
-				if (boxesIntersect(entity.box, box)) {
-					result.add(entity);
-				}
-			}
-		} else {
-			if (boxesIntersect(this.children.topLeft.box, box)) {
-				this.children.topLeft.query(box, result);
-			}
-			if (boxesIntersect(this.children.topRight.box, box)) {
-				this.children.topRight.query(box, result);
-			}
-			if (boxesIntersect(this.children.bottomLeft.box, box)) {
-				this.children.bottomLeft.query(box, result);
-			}
-			if (boxesIntersect(this.children.bottomRight.box, box)) {
-				this.children.bottomRight.query(box, result);
-			}
-		}
-		return result;
-	}
-
-	public clear(): void {
-		this.entities = [];
-		this.children = null;
-	}
-}
-
-function getPairIndex(index1: number, index2: number): number {
-	let minimumIndex: number;
-	let maximumIndex: number;
-	if (index1 < index2) {
-		minimumIndex = index1;
-		maximumIndex = index2;
-	} else {
-		minimumIndex = index2;
-		maximumIndex = index1;
-	}
-	return maximumIndex * maximumIndex + minimumIndex;
-}
-
-export class Scene {
-	public entities: Entity[];
-	public quadTree: QuadTree;
-	constructor(box: Box) {
-		this.entities = [];
-		this.quadTree = new QuadTree(box, 7);
-	}
-
-	public addEntity(entity: Entity): number {
-		if (this.entities.includes(entity)) {
-			return -1;
-		}
-		return this.entities.push(entity);
-	}
-
-	public removeEntity(entity: Entity): boolean {
-		const index: number = this.entities.indexOf(entity);
-		if (index === -1) {
-			return false;
-		}
-		this.entities.splice(index, 1);
-		return true;
-	}
-
-	public destroy() {
-
-	}
-
-	public tick(): void {
-		this.quadTree.clear();
-		const processedCollisions: Set<number> = new Set<number>();
-		const length: number = this.entities.length;
-		for (let i: number = 0; i < length; i++) {
-			const instance: Entity = this.entities[i];
-			instance.tick();
-			const potentialColliders: Set<Entity> = this.quadTree.query(instance.box);
-			this.quadTree.insert(instance);
-			for (const other of potentialColliders) {
-				if (instance.index === other.index) {
-					continue;
-				}
-				const pairIndex: number = getPairIndex(instance.index, other.index);
-				if (processedCollisions.has(pairIndex)) {
-					continue;
-				}
-				processedCollisions.add(pairIndex);
-				if (boxesIntersect(instance.box, other.box)) {
-					Collision.collide(instance, other);
-				}
-			}
-		}
-	}
-}
+export {
+	generateArrow,
+	generateCrescent,
+	generateEllipse,
+	generateHeart,
+	generatePolygon,
+	generateRectangle,
+	generateStar
+} from "./tools/generator";
