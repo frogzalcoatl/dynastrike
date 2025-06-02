@@ -167,8 +167,8 @@ export class Entity {
 	}
 
 	public tick(): void {
-		const linearFriction: number = 0.92;
-		const angularFriction: number = 0.90;
+		const linearFriction: number = 0.9;
+		const angularFriction: number = 0.9;
 		this.velocity.x *= linearFriction;
 		this.velocity.y *= linearFriction;
 		this.angularVelocity *= angularFriction;
