@@ -193,7 +193,12 @@ export class Collision {
 				}
 			} else {
 				const distanceToProjection: number = Math.sqrt(distanceToProjectionSquared);
-				currentPenetration = circleEntity.radius + distanceToProjection;
+				currentPenetration = circleEntity.radius - distanceToProjection;
+				if (currentPenetration <= 0) {
+					previousPointX = currentPointX;
+					previousPointY = currentPointY;
+					continue;
+				}
 				if (distanceToProjection < 1e-9) {
 					const fallbackDeltaX: number = circleEntity.position.x - polygonEntity.position.x;
 					const fallbackDeltaY: number = circleEntity.position.y - polygonEntity.position.y;
@@ -255,7 +260,10 @@ export class Collision {
 				}
 			} else {
 				const distanceToVertex: number = Math.sqrt(distanceToVertexSquared);
-				currentPenetration = circleEntity.radius + distanceToVertex;
+				currentPenetration = circleEntity.radius - distanceToVertex;
+				if (currentPenetration <= 0) {
+					continue;
+				}
 				if (distanceToVertex < 1e-9) {
 					const fallbackDeltaX: number = circleEntity.position.x - polygonEntity.position.x;
 					const fallbackDeltaY: number = circleEntity.position.y - polygonEntity.position.y;
@@ -279,6 +287,63 @@ export class Collision {
 				accumulatedProjectedYTimesPenetration += vertexY * currentPenetration;
 				contactCount++;
 			}
+		}
+		if (contactCount === 0 && isInside) {
+			let minimumDistance: number = Infinity;
+			let bestNX: number = 0;
+			let bestNY: number = 0;
+			let previousX: number = polygonEntity.points[polygonEntity.points.length - 2];
+			let previousY: number = polygonEntity.points[polygonEntity.points.length - 1];
+			for (let i: number = 0; i < polygonEntity.points.length; i += 2) {
+				const currentPointX: number = polygonEntity.points[i];
+				const currentPointY: number = polygonEntity.points[i + 1];
+				const edgeX: number = currentPointX - previousX;
+				const edgeY: number = currentPointY - previousY;
+				const edgeLengthSquared: number = edgeX * edgeX + edgeY * edgeY;
+				if (edgeLengthSquared < 1e-12) {
+					previousX = currentPointX;
+					previousY = currentPointY;
+					continue;
+				}
+				let projectionFactor: number = ((circleEntity.position.x - previousX) * edgeX + (circleEntity.position.y - previousY) * edgeY) / edgeLengthSquared;
+				if (projectionFactor < 0) {
+					projectionFactor = 0;
+				} else if (projectionFactor > 1) {
+					projectionFactor = 1;
+				}
+				const projectionX: number = previousX + projectionFactor * edgeX;
+				const projectionY: number = previousY + projectionFactor * edgeY;
+				const distanceX: number = circleEntity.position.x - projectionX;
+				const distanceY: number = circleEntity.position.y - projectionY;
+				const distance: number = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+				if (distance < minimumDistance) {
+					minimumDistance = distance;
+					if (distance < 1e-9) {
+						bestNX = 0;
+						bestNY = 1;
+					} else {
+						const inverseDistance: number = 1 / distance;
+						bestNX = -distanceX * inverseDistance;
+						bestNY = -distanceY * inverseDistance;
+					}
+				}
+				previousX = currentPointX;
+				previousY = currentPointY;
+			}
+			const penetration: number = circleEntity.radius + minimumDistance;
+			if (polygonEntity.isStatic) {
+				circleEntity.moveBy(bestNX * penetration, bestNY * penetration);
+			} else if (circleEntity.isStatic) {
+				polygonEntity.moveBy(-bestNX * penetration, -bestNY * penetration);
+			} else {
+				const totalMass = polygonEntity.mass + circleEntity.mass;
+				const inverseTotalMass = (totalMass > 1e-9) ? 1 / totalMass : 0;
+				const polygonFraction = circleEntity.mass * inverseTotalMass;
+				const circleFraction = polygonEntity.mass * inverseTotalMass;
+				polygonEntity.moveBy(-bestNX * penetration * polygonFraction, -bestNY * penetration * polygonFraction);
+				circleEntity.moveBy(bestNX * penetration * circleFraction, bestNY * penetration * circleFraction);
+			}
+			return;
 		}
 		if (contactCount === 0) {
 			return;
