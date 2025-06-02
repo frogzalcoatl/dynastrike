@@ -28,8 +28,6 @@ export {
 } from "./entity/entity";
 
 export {
-	generateArrow,
-	generateCrescent,
 	generateEllipse,
 	generateHeart,
 	generatePolygon,
