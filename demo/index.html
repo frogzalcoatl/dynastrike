@@ -121,12 +121,11 @@
 			}
 			ctx.lineWidth = 1;
 		}
-		let i = 0;
 		function animationFrame() {
 			playerInput();
 			//const startTime = performance.now();
 			//while (performance.now() - startTime < 6) scene.tick();
-			if (i++ % 5 === 0) scene.tick();
+			scene.tick();
 			ctx.clearRect(0, 0, WIDTH, HEIGHT);
 			ctx.fillRect(0, 0, WIDTH, HEIGHT);
 			drawEntities();
