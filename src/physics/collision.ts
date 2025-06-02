@@ -1,6 +1,18 @@
 import { Entity } from "../entity/entity";
 import { Vector2 } from "../geometry/vector";
 
+export interface Projection {
+	x: number;
+	y: number;
+	distanceSquared: number;
+}
+
+export interface ContactResult {
+	penetration: number;
+	normalX: number;
+	normalY: number;
+}
+
 export class Collision {
 	public static collideCircleCircle(instance: Entity, other: Entity): void {
 		const distanceX: number = other.position.x - instance.position.x;
@@ -95,27 +107,11 @@ export class Collision {
 			const vertex1Y: number = points[j + 1];
 			const vertex2X: number = points[i];
 			const vertex2Y: number = points[i + 1];
-			const edgeX: number = vertex2X - vertex1X;
-			const edgeY: number = vertex2Y - vertex1Y;
-			const edgeLengthSquared = edgeX * edgeX + edgeY * edgeY;
-			if (edgeLengthSquared < 1e-12) {
-				continue;
-			}
-			let projectionFactor = ((pointX - vertex1X) * edgeX + (pointY - vertex1Y) * edgeY) / edgeLengthSquared;
-			if (projectionFactor < 0) {
-				projectionFactor = 0;
-			} else if (projectionFactor > 1) {
-				projectionFactor = 1;
-			}
-			const projectionX: number = vertex1X + projectionFactor * edgeX;
-			const projectionY: number = vertex1Y + projectionFactor * edgeY;
-			const deltaX: number = pointX - projectionX;
-			const deltaY: number = pointY - projectionY;
-			const projectionDistanceSquared: number = deltaX * deltaX + deltaY * deltaY;
-			if (projectionDistanceSquared < minimumDistanceSquared) {
-				minimumDistanceSquared = projectionDistanceSquared;
-				closestX = projectionX;
-				closestY = projectionY;
+			const projection: Projection = this.projectPointOnEdge(pointX, pointY, vertex1X, vertex1Y, vertex2X, vertex2Y);
+			if (projection.distanceSquared < minimumDistanceSquared) {
+				minimumDistanceSquared = projection.distanceSquared;
+				closestX = projection.x;
+				closestY = projection.y;
 			}
 		}
 		return {
@@ -124,185 +120,143 @@ export class Collision {
 		};
 	}
 
+	private static projectPointOnEdge(pointX: number, pointY: number, vertex1X: number, vertex1Y: number, vertex2X: number, vertex2Y: number): Projection {
+		const edgeX: number = vertex2X - vertex1X;
+		const edgeY: number = vertex2Y - vertex1Y;
+		const edgeLengthSquared: number = edgeX * edgeX + edgeY * edgeY;
+		if (edgeLengthSquared < 1e-12) {
+			const distanceX = pointX - vertex1X;
+			const distanceY = pointY - vertex1Y;
+			return {
+				x: vertex1X,
+				y: vertex1Y,
+				distanceSquared: distanceX * distanceX + distanceY * distanceY,
+			};
+		}
+
+		let projectionFactor: number = ((pointX - vertex1X) * edgeX + (pointY - vertex1Y) * edgeY) / edgeLengthSquared;
+		if (projectionFactor < 0) {
+			projectionFactor = 0;
+		} else if (projectionFactor > 1) {
+			projectionFactor = 1;
+		}
+		const projectionX: number = vertex1X + projectionFactor * edgeX;
+		const projectionY: number = vertex1Y + projectionFactor * edgeY;
+		const distanceX: number = pointX - projectionX;
+		const distanceY: number = pointY - projectionY;
+		return {
+			x: projectionX,
+			y: projectionY,
+			distanceSquared: distanceX * distanceX + distanceY * distanceY,
+		};
+	}
+
+	private static getPenetrationAndNormal(circleX: number, circleY: number, contactX: number, contactY: number, radius: number, polygonCenterX: number, polygonCenterY: number, isInside: boolean, distanceSquared: number, radiusSquared: number): ContactResult {
+		if (!isInside && distanceSquared >= radiusSquared) {
+			return {
+				penetration: 0,
+				normalX: 0,
+				normalY: 0
+			};
+		}
+		const distance: number = Math.sqrt(distanceSquared);
+		const penetration: number = radius - distance;
+		if (penetration <= 0) {
+			return {
+				penetration: 0,
+				normalX: 0,
+				normalY: 0
+			};
+		}
+		let normalX: number = 0;
+		let normalY: number = 0;
+		if (distance < 1e-9) {
+			const distanceX: number = circleX - polygonCenterX;
+			const distanceY: number = circleY - polygonCenterY;
+			const length: number = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+			if (length < 1e-9) {
+				normalX = 0;
+				normalY = isInside ? -1 : 1;
+			} else {
+				const inverseLength: number = 1 / length;
+				normalX = distanceX * inverseLength * (isInside ? -1 : 1);
+				normalY = distanceY * inverseLength * (isInside ? -1 : 1);
+			}
+		} else {
+			const inverseDistance: number = 1 / distance;
+			const sign = isInside ? -1 : 1;
+			normalX = (circleX - contactX) * inverseDistance * sign;
+			normalY = (circleY - contactY) * inverseDistance * sign;
+		}
+		return {
+			penetration,
+			normalX: normalX,
+			normalY: normalY
+		};
+	}
+
 	public static collidePolygonCircle(polygonEntity: Entity, circleEntity: Entity): void {
 		if (polygonEntity.points === null || (polygonEntity.isStatic && circleEntity.isStatic)) {
 			return;
 		}
-		const circleRadiusSquared: number = circleEntity.radius * circleEntity.radius;
+		const circleRadius: number = circleEntity.radius;
+		const circleRadiusSquared: number = circleRadius * circleRadius;
 		const isInside: boolean = this.isPointInPolygon(circleEntity.position.x, circleEntity.position.y, polygonEntity.points);
 		let sumPenetration: number = 0;
 		let accumulatedNormalXTimesPenetration: number = 0;
 		let accumulatedNormalYTimesPenetration: number = 0;
-		let accumulatedProjectedXTimesPenetration: number = 0;
-		let accumulatedProjectedYTimesPenetration: number = 0;
+		let accumulatedContactXTimesPenetration: number = 0;
+		let accumulatedContactYTimesPenetration: number = 0;
 		let contactCount: number = 0;
-		let determinedNormalX: number = 0;
-		let determinedNormalY: number = 0;
-		let currentPenetration: number = 0;
-		let previousPointX: number = polygonEntity.points[polygonEntity.points.length - 2];
-		let previousPointY: number = polygonEntity.points[polygonEntity.points.length - 1];
+		let previousX: number = polygonEntity.points[polygonEntity.points.length - 2];
+		let previousY: number = polygonEntity.points[polygonEntity.points.length - 1];
 		for (let i: number = 0; i < polygonEntity.points.length; i += 2) {
-			const currentPointX: number = polygonEntity.points[i];
-			const currentPointY: number = polygonEntity.points[i + 1];
-			const edgeVectorX: number = currentPointX - previousPointX;
-			const edgeVectorY: number = currentPointY - previousPointY;
-			const edgeLengthSquared: number = edgeVectorX * edgeVectorX + edgeVectorY * edgeVectorY;
-			if (edgeLengthSquared < 1e-12) {
-				previousPointX = currentPointX;
-				previousPointY = currentPointY;
-				continue;
-			}
-			const dotProductCircleCenterToPreviousPointAndEdge: number = ((circleEntity.position.x - previousPointX) * edgeVectorX + (circleEntity.position.y - previousPointY) * edgeVectorY);
-			let projectionFactor: number = dotProductCircleCenterToPreviousPointAndEdge / edgeLengthSquared;
-			if (projectionFactor < 0) {
-				projectionFactor = 0;
-			} else if (projectionFactor > 1) {
-				projectionFactor = 1;
-			}
-			const projectedPointX: number = previousPointX + projectionFactor * edgeVectorX;
-			const projectedPointY: number = previousPointY + projectionFactor * edgeVectorY;
-			const deltaCircleToProjectionX: number = circleEntity.position.x - projectedPointX;
-			const deltaCircleToProjectionY: number = circleEntity.position.y - projectedPointY;
-			const distanceToProjectionSquared: number = deltaCircleToProjectionX * deltaCircleToProjectionX + deltaCircleToProjectionY * deltaCircleToProjectionY;
-			if (!isInside) {
-				if (distanceToProjectionSquared < circleRadiusSquared) {
-					const distanceToProjection: number = Math.sqrt(distanceToProjectionSquared);
-					currentPenetration = circleEntity.radius - distanceToProjection;
-					if (distanceToProjection < 1e-9) {
-						const fallbackDeltaX: number = circleEntity.position.x - polygonEntity.position.x;
-						const fallbackDeltaY: number = circleEntity.position.y - polygonEntity.position.y;
-						const fallbackLength: number = Math.sqrt(fallbackDeltaX * fallbackDeltaX + fallbackDeltaY * fallbackDeltaY);
-						if (fallbackLength < 1e-9) {
-							determinedNormalX = 0; determinedNormalY = 1;
-						} else {
-							const inverseFallbackLength: number = 1 / fallbackLength;
-							determinedNormalX = fallbackDeltaX * inverseFallbackLength;
-							determinedNormalY = fallbackDeltaY * inverseFallbackLength;
-						}
-					} else {
-						const inverseDistanceToProjection: number = 1 / distanceToProjection;
-						determinedNormalX = deltaCircleToProjectionX * inverseDistanceToProjection;
-						determinedNormalY = deltaCircleToProjectionY * inverseDistanceToProjection;
-					}
-					sumPenetration += currentPenetration;
-					accumulatedNormalXTimesPenetration += determinedNormalX * currentPenetration;
-					accumulatedNormalYTimesPenetration += determinedNormalY * currentPenetration;
-					accumulatedProjectedXTimesPenetration += projectedPointX * currentPenetration;
-					accumulatedProjectedYTimesPenetration += projectedPointY * currentPenetration;
-					contactCount++;
-				}
-			} else {
-				const distanceToProjection: number = Math.sqrt(distanceToProjectionSquared);
-				currentPenetration = circleEntity.radius - distanceToProjection;
-				if (currentPenetration <= 0) {
-					previousPointX = currentPointX;
-					previousPointY = currentPointY;
-					continue;
-				}
-				if (distanceToProjection < 1e-9) {
-					const fallbackDeltaX: number = circleEntity.position.x - polygonEntity.position.x;
-					const fallbackDeltaY: number = circleEntity.position.y - polygonEntity.position.y;
-					const fallbackLength: number = Math.sqrt(fallbackDeltaX * fallbackDeltaX + fallbackDeltaY * fallbackDeltaY);
-					if (fallbackLength < 1e-9) {
-						determinedNormalX = 0; determinedNormalY = -1;
-					} else {
-						const inverseFallbackLength: number = 1 / fallbackLength;
-						determinedNormalX = -fallbackDeltaX * inverseFallbackLength;
-						determinedNormalY = -fallbackDeltaY * inverseFallbackLength;
-					}
-				} else {
-					const inverseDistanceToProjection: number = 1 / distanceToProjection;
-					determinedNormalX = -deltaCircleToProjectionX * inverseDistanceToProjection;
-					determinedNormalY = -deltaCircleToProjectionY * inverseDistanceToProjection;
-				}
-				sumPenetration += currentPenetration;
-				accumulatedNormalXTimesPenetration += determinedNormalX * currentPenetration;
-				accumulatedNormalYTimesPenetration += determinedNormalY * currentPenetration;
-				accumulatedProjectedXTimesPenetration += projectedPointX * currentPenetration;
-				accumulatedProjectedYTimesPenetration += projectedPointY * currentPenetration;
+			const currentX: number = polygonEntity.points[i];
+			const currentY: number = polygonEntity.points[i + 1];
+			const projection: Projection = this.projectPointOnEdge(circleEntity.position.x, circleEntity.position.y, previousX, previousY, currentX, currentY);
+			const contact: ContactResult = this.getPenetrationAndNormal(circleEntity.position.x, circleEntity.position.y, projection.x, projection.y, circleRadius, polygonEntity.position.x, polygonEntity.position.y, isInside, projection.distanceSquared, circleRadiusSquared);
+			if (contact.penetration > 0) {
+				sumPenetration += contact.penetration;
+				accumulatedNormalXTimesPenetration += contact.normalX * contact.penetration;
+				accumulatedNormalYTimesPenetration += contact.normalY * contact.penetration;
+				accumulatedContactXTimesPenetration += projection.x * contact.penetration;
+				accumulatedContactYTimesPenetration += projection.y * contact.penetration;
 				contactCount++;
 			}
-			previousPointX = currentPointX;
-			previousPointY = currentPointY;
+			previousX = currentX;
+			previousY = currentY;
 		}
 		for (let i: number = 0; i < polygonEntity.points.length; i += 2) {
 			const vertexX: number = polygonEntity.points[i];
 			const vertexY: number = polygonEntity.points[i + 1];
-			const deltaCircleToVertexX: number = circleEntity.position.x - vertexX;
-			const deltaCircleToVertexY: number = circleEntity.position.y - vertexY;
-			const distanceToVertexSquared: number = deltaCircleToVertexX * deltaCircleToVertexX + deltaCircleToVertexY * deltaCircleToVertexY;
-			if (!isInside) {
-				if (distanceToVertexSquared < circleRadiusSquared) {
-					const distanceToVertex: number = Math.sqrt(distanceToVertexSquared);
-					currentPenetration = circleEntity.radius - distanceToVertex;
-					if (distanceToVertex < 1e-9) {
-						const fallbackDeltaX: number = circleEntity.position.x - polygonEntity.position.x;
-						const fallbackDeltaY: number = circleEntity.position.y - polygonEntity.position.y;
-						const fallbackLength: number = Math.sqrt(fallbackDeltaX * fallbackDeltaX + fallbackDeltaY * fallbackDeltaY);
-						if (fallbackLength < 1e-9) {
-							determinedNormalX = 0; determinedNormalY = 1;
-						} else {
-							const inverseFallbackLength: number = 1 / fallbackLength;
-							determinedNormalX = fallbackDeltaX * inverseFallbackLength;
-							determinedNormalY = fallbackDeltaY * inverseFallbackLength;
-						}
-					} else {
-						const inverseDistanceToVertex: number = 1 / distanceToVertex;
-						determinedNormalX = deltaCircleToVertexX * inverseDistanceToVertex;
-						determinedNormalY = deltaCircleToVertexY * inverseDistanceToVertex;
-					}
-					sumPenetration += currentPenetration;
-					accumulatedNormalXTimesPenetration += determinedNormalX * currentPenetration;
-					accumulatedNormalYTimesPenetration += determinedNormalY * currentPenetration;
-					accumulatedProjectedXTimesPenetration += vertexX * currentPenetration;
-					accumulatedProjectedYTimesPenetration += vertexY * currentPenetration;
-					contactCount++;
-				}
-			} else {
-				const distanceToVertex: number = Math.sqrt(distanceToVertexSquared);
-				currentPenetration = circleEntity.radius - distanceToVertex;
-				if (currentPenetration <= 0) {
-					continue;
-				}
-				if (distanceToVertex < 1e-9) {
-					const fallbackDeltaX: number = circleEntity.position.x - polygonEntity.position.x;
-					const fallbackDeltaY: number = circleEntity.position.y - polygonEntity.position.y;
-					const fallbackLength: number = Math.sqrt(fallbackDeltaX * fallbackDeltaX + fallbackDeltaY * fallbackDeltaY);
-					if (fallbackLength < 1e-9) {
-						determinedNormalX = 0; determinedNormalY = -1;
-					} else {
-						const inverseFallbackLength: number = 1 / fallbackLength;
-						determinedNormalX = -fallbackDeltaX * inverseFallbackLength;
-						determinedNormalY = -fallbackDeltaY * inverseFallbackLength;
-					}
-				} else {
-					const inverseDistanceToVertex: number = 1 / distanceToVertex;
-					determinedNormalX = -deltaCircleToVertexX * inverseDistanceToVertex;
-					determinedNormalY = -deltaCircleToVertexY * inverseDistanceToVertex;
-				}
-				sumPenetration += currentPenetration;
-				accumulatedNormalXTimesPenetration += determinedNormalX * currentPenetration;
-				accumulatedNormalYTimesPenetration += determinedNormalY * currentPenetration;
-				accumulatedProjectedXTimesPenetration += vertexX * currentPenetration;
-				accumulatedProjectedYTimesPenetration += vertexY * currentPenetration;
+			const distanceX: number = circleEntity.position.x - vertexX;
+			const distanceY: number = circleEntity.position.y - vertexY;
+			const distanceSquared: number = distanceX * distanceX + distanceY * distanceY;
+			const contact: ContactResult = this.getPenetrationAndNormal(circleEntity.position.x, circleEntity.position.y, vertexX, vertexY, circleRadius, polygonEntity.position.x, polygonEntity.position.y, isInside, distanceSquared, circleRadiusSquared);
+			if (contact.penetration > 0) {
+				sumPenetration += contact.penetration;
+				accumulatedNormalXTimesPenetration += contact.normalX * contact.penetration;
+				accumulatedNormalYTimesPenetration += contact.normalY * contact.penetration;
+				accumulatedContactXTimesPenetration += vertexX * contact.penetration;
+				accumulatedContactYTimesPenetration += vertexY * contact.penetration;
 				contactCount++;
 			}
 		}
 		if (contactCount === 0 && isInside) {
 			let minimumDistance: number = Infinity;
-			let bestNX: number = 0;
-			let bestNY: number = 0;
+			let bestNormalX: number = 0;
+			let bestNormalY: number = 0;
 			let previousX: number = polygonEntity.points[polygonEntity.points.length - 2];
 			let previousY: number = polygonEntity.points[polygonEntity.points.length - 1];
 			for (let i: number = 0; i < polygonEntity.points.length; i += 2) {
-				const currentPointX: number = polygonEntity.points[i];
-				const currentPointY: number = polygonEntity.points[i + 1];
-				const edgeX: number = currentPointX - previousX;
-				const edgeY: number = currentPointY - previousY;
+				const currentX: number = polygonEntity.points[i];
+				const currentY: number = polygonEntity.points[i + 1];
+				const edgeX: number = currentX - previousX;
+				const edgeY: number = currentY - previousY;
 				const edgeLengthSquared: number = edgeX * edgeX + edgeY * edgeY;
 				if (edgeLengthSquared < 1e-12) {
-					previousX = currentPointX;
-					previousY = currentPointY;
+					previousX = currentX;
+					previousY = currentY;
 					continue;
 				}
 				let projectionFactor: number = ((circleEntity.position.x - previousX) * edgeX + (circleEntity.position.y - previousY) * edgeY) / edgeLengthSquared;
@@ -319,117 +273,114 @@ export class Collision {
 				if (distance < minimumDistance) {
 					minimumDistance = distance;
 					if (distance < 1e-9) {
-						bestNX = 0;
-						bestNY = 1;
+						bestNormalX = 0;
+						bestNormalY = 1;
 					} else {
 						const inverseDistance: number = 1 / distance;
-						bestNX = -distanceX * inverseDistance;
-						bestNY = -distanceY * inverseDistance;
+						bestNormalX = -distanceX * inverseDistance;
+						bestNormalY = -distanceY * inverseDistance;
 					}
 				}
-				previousX = currentPointX;
-				previousY = currentPointY;
+				previousX = currentX;
+				previousY = currentY;
 			}
 			const penetration: number = circleEntity.radius + minimumDistance;
 			if (polygonEntity.isStatic) {
-				circleEntity.moveBy(bestNX * penetration, bestNY * penetration);
+				circleEntity.moveBy(bestNormalX * penetration, bestNormalY * penetration);
 			} else if (circleEntity.isStatic) {
-				polygonEntity.moveBy(-bestNX * penetration, -bestNY * penetration);
+				polygonEntity.moveBy(-bestNormalX * penetration, -bestNormalY * penetration);
 			} else {
 				const totalMass = polygonEntity.mass + circleEntity.mass;
-				const inverseTotalMass = (totalMass > 1e-9) ? 1 / totalMass : 0;
-				const polygonFraction = circleEntity.mass * inverseTotalMass;
-				const circleFraction = polygonEntity.mass * inverseTotalMass;
-				polygonEntity.moveBy(-bestNX * penetration * polygonFraction, -bestNY * penetration * polygonFraction);
-				circleEntity.moveBy(bestNX * penetration * circleFraction, bestNY * penetration * circleFraction);
+				const invTotal = totalMass > 1e-9 ? 1 / totalMass : 0;
+				const polyFrac = circleEntity.mass * invTotal;
+				const circFrac = polygonEntity.mass * invTotal;
+				polygonEntity.moveBy(-bestNormalX * penetration * polyFrac, -bestNormalY * penetration * polyFrac);
+				circleEntity.moveBy(bestNormalX * penetration * circFrac, bestNormalY * penetration * circFrac);
 			}
 			return;
 		}
 		if (contactCount === 0) {
 			return;
 		}
-		let weightedAverageNormalX: number = 0;
-		let weightedAverageNormalY: number = 0;
-		let averageContactPointX: number = 0;
-		let averageContactPointY: number = 0;
+		let weightedNormalX: number = 0;
+		let weightedNormalY: number = 0;
+		let averageContactX: number = 0;
+		let averageContactY: number = 0;
 		if (sumPenetration < 1e-9) {
-			weightedAverageNormalX = 0.0;
-			weightedAverageNormalY = 0.0;
-			averageContactPointX = 0.0;
-			averageContactPointY = 0.0;
+			weightedNormalX = 0;
+			weightedNormalY = 0;
+			averageContactX = 0;
+			averageContactY = 0;
 		} else {
-			const inverseSumPenetration = 1 / sumPenetration;
-			weightedAverageNormalX = accumulatedNormalXTimesPenetration * inverseSumPenetration;
-			weightedAverageNormalY = accumulatedNormalYTimesPenetration * inverseSumPenetration;
-			averageContactPointX = accumulatedProjectedXTimesPenetration * inverseSumPenetration;
-			averageContactPointY = accumulatedProjectedYTimesPenetration * inverseSumPenetration;
+			const inverseSum: number = 1 / sumPenetration;
+			weightedNormalX = accumulatedNormalXTimesPenetration * inverseSum;
+			weightedNormalY = accumulatedNormalYTimesPenetration * inverseSum;
+			averageContactX = accumulatedContactXTimesPenetration * inverseSum;
+			averageContactY = accumulatedContactYTimesPenetration * inverseSum;
 		}
-		const averageNormalLength = Math.sqrt(weightedAverageNormalX * weightedAverageNormalX + weightedAverageNormalY * weightedAverageNormalY);
-		let finalAverageNormalX: number;
-		let finalAverageNormalY: number;
-		if (averageNormalLength < 1e-9) {
-			finalAverageNormalX = 0;
-			finalAverageNormalY = 1;
+		const avgNormLen: number = Math.sqrt(weightedNormalX * weightedNormalX + weightedNormalY * weightedNormalY);
+		let finalNormalX: number = 0;
+		let finalNormalY: number = 0;
+		if (avgNormLen < 1e-9) {
+			finalNormalX = 0;
+			finalNormalY = 1;
 		} else {
-			const inverseAverageNormalLength: number = 1 / averageNormalLength;
-			finalAverageNormalX = weightedAverageNormalX * inverseAverageNormalLength;
-			finalAverageNormalY = weightedAverageNormalY * inverseAverageNormalLength;
+			const inverseLength: number = 1 / avgNormLen;
+			finalNormalX = weightedNormalX * inverseLength;
+			finalNormalY = weightedNormalY * inverseLength;
 		}
 		const averagePenetration: number = sumPenetration / contactCount;
 		const correctionMagnitude: number = averagePenetration;
 		if (polygonEntity.isStatic) {
-			circleEntity.moveBy(finalAverageNormalX * correctionMagnitude, finalAverageNormalY * correctionMagnitude);
+			circleEntity.moveBy(finalNormalX * correctionMagnitude, finalNormalY * correctionMagnitude);
 		} else if (circleEntity.isStatic) {
-			polygonEntity.moveBy(-finalAverageNormalX * correctionMagnitude, -finalAverageNormalY * correctionMagnitude);
+			polygonEntity.moveBy(-finalNormalX * correctionMagnitude, -finalNormalY * correctionMagnitude);
 		} else {
 			const totalMass = polygonEntity.mass + circleEntity.mass;
-			let inverseTotalMass = 0;
-			if (totalMass > 1e-9) {
-				inverseTotalMass = 1 / totalMass;
-			}
-			const polygonFraction: number = circleEntity.mass * inverseTotalMass;
-			const circleFraction: number = polygonEntity.mass * inverseTotalMass;
-			polygonEntity.moveBy(-finalAverageNormalX * correctionMagnitude * polygonFraction, -finalAverageNormalY * correctionMagnitude * polygonFraction);
-			circleEntity.moveBy(finalAverageNormalX * correctionMagnitude * circleFraction, finalAverageNormalY * correctionMagnitude * circleFraction);
+			const inverseTotalMass = 1 / totalMass;
+			const polygonCorrectionFactor = circleEntity.mass * inverseTotalMass;
+			const circleCorrectionFactor = polygonEntity.mass * inverseTotalMass;
+			polygonEntity.moveBy(-finalNormalX * correctionMagnitude * polygonCorrectionFactor, -finalNormalY * correctionMagnitude * polygonCorrectionFactor);
+			circleEntity.moveBy(finalNormalX * correctionMagnitude * circleCorrectionFactor, finalNormalY * correctionMagnitude * circleCorrectionFactor);
 		}
-		const relativePolygonContactX: number = averageContactPointX - polygonEntity.position.x;
-		const relativePolygonContactY: number = averageContactPointY - polygonEntity.position.y;
-		const relativeCircleContactX: number = averageContactPointX - circleEntity.position.x;
-		const relativeCircleContactY: number = averageContactPointY - circleEntity.position.y;
-		const relativeVelocityX: number = (circleEntity.velocity.x - circleEntity.angularVelocity * relativeCircleContactY) - (polygonEntity.velocity.x - polygonEntity.angularVelocity * relativePolygonContactY);
-		const relativeVelocityY: number = (circleEntity.velocity.y + circleEntity.angularVelocity * relativeCircleContactX) - (polygonEntity.velocity.y + polygonEntity.angularVelocity * relativePolygonContactX);
-		const velocityAlongNormal: number = relativeVelocityX * finalAverageNormalX + relativeVelocityY * finalAverageNormalY;
+		const relativePolygonX: number = averageContactX - polygonEntity.position.x;
+		const relativePolygonY: number = averageContactY - polygonEntity.position.y;
+		const relativeCircleX: number = averageContactX - circleEntity.position.x;
+		const relativeCircleY: number = averageContactY - circleEntity.position.y;
+		const relativeVelocityX: number = (circleEntity.velocity.x - circleEntity.angularVelocity * relativeCircleY) - (polygonEntity.velocity.x - polygonEntity.angularVelocity * relativePolygonY);
+		const relativeVelocityY: number = (circleEntity.velocity.y + circleEntity.angularVelocity * relativeCircleX) - (polygonEntity.velocity.y + polygonEntity.angularVelocity * relativePolygonX);
+		const velocityAlongNormal: number = relativeVelocityX * finalNormalX + relativeVelocityY * finalNormalY;
 		if (velocityAlongNormal > 0) {
 			return;
 		}
-		const inverseMassPolygon: number = polygonEntity.isStatic ? 0 : 1 / polygonEntity.mass;
-		const inverseMassCircle: number = circleEntity.isStatic ? 0 : 1 / circleEntity.mass;
-		let inverseInertiaPolygon = 0;
+		const inversePolygonMass: number = polygonEntity.isStatic ? 0 : 1 / polygonEntity.mass;
+		const inverseCircleMass: number = circleEntity.isStatic ? 0 : 1 / circleEntity.mass;
+		let invInertiaPoly: number = 0;
 		if (!polygonEntity.isStatic && polygonEntity.inertia > 1e-9) {
-			inverseInertiaPolygon = 1 / polygonEntity.inertia;
+			invInertiaPoly = 1 / polygonEntity.inertia;
 		}
-		let inverseInertiaCircle = 0;
+		let invInertiaCirc: number = 0;
 		if (!circleEntity.isStatic && circleEntity.inertia > 1e-9) {
-			inverseInertiaCircle = 1 / circleEntity.inertia;
+			invInertiaCirc = 1 / circleEntity.inertia;
 		}
-		const perpendicularRelativePolygonContactDotNormal = relativePolygonContactX * finalAverageNormalY - relativePolygonContactY * finalAverageNormalX;
-		const perpendicularRelativeCircleContactDotNormal = relativeCircleContactX * finalAverageNormalY - relativeCircleContactY * finalAverageNormalX;
-		const denominator = inverseMassPolygon + inverseMassCircle + (perpendicularRelativePolygonContactDotNormal * perpendicularRelativePolygonContactDotNormal) * inverseInertiaPolygon + (perpendicularRelativeCircleContactDotNormal * perpendicularRelativeCircleContactDotNormal) * inverseInertiaCircle;
+		const relativePolygonPerpendicular: number = relativePolygonX * finalNormalY - relativePolygonY * finalNormalX;
+		const relativeCirclePerpendicular: number = relativeCircleX * finalNormalY - relativeCircleY * finalNormalX;
+		const denominator: number = inversePolygonMass + inverseCircleMass + relativePolygonPerpendicular * relativePolygonPerpendicular * invInertiaPoly + relativeCirclePerpendicular * relativeCirclePerpendicular * invInertiaCirc;
 		if (denominator < 1e-9) {
 			return;
 		}
-		const impulseMagnitude: number = -2.0 * velocityAlongNormal / denominator;
-		const impulseVectorX: number = impulseMagnitude * finalAverageNormalX;
-		const impulseVectorY: number = impulseMagnitude * finalAverageNormalY;
+		const impulseMagnitude: number = (-2.0 * velocityAlongNormal) / denominator;
+		const impulseX: number = impulseMagnitude * finalNormalX;
+		const impulseY: number = impulseMagnitude * finalNormalY;
 		if (!polygonEntity.isStatic) {
-			polygonEntity.velocity.x -= impulseVectorX * inverseMassPolygon;
-			polygonEntity.velocity.y -= impulseVectorY * inverseMassPolygon;
-			polygonEntity.angularVelocity -= (relativePolygonContactX * impulseVectorY - relativePolygonContactY * impulseVectorX) * inverseInertiaPolygon;
+			polygonEntity.velocity.x -= impulseX * inversePolygonMass;
+			polygonEntity.velocity.y -= impulseY * inversePolygonMass;
+			polygonEntity.angularVelocity -= (relativePolygonX * impulseY - relativePolygonY * impulseX) * invInertiaPoly;
 		}
 		if (!circleEntity.isStatic) {
-			circleEntity.velocity.x += impulseVectorX * inverseMassCircle;
-			circleEntity.velocity.y += impulseVectorY * inverseMassCircle;
-			circleEntity.angularVelocity += (relativeCircleContactX * impulseVectorY - relativeCircleContactY * impulseVectorX) * inverseInertiaCircle;
+			circleEntity.velocity.x += impulseX * inverseCircleMass;
+			circleEntity.velocity.y += impulseY * inverseCircleMass;
+			circleEntity.angularVelocity += (relativeCircleX * impulseY - relativeCircleY * impulseX) * invInertiaCirc;
 		}
 	}
 
@@ -443,11 +394,15 @@ export class Collision {
 			return;
 		}
 		if (instance.points !== null && other.points === null) {
+			console.time("collidePolygonCircle");
 			this.collidePolygonCircle(instance, other);
+			console.timeEnd("collidePolygonCircle");
 			return;
 		}
 		if (instance.points === null && other.points !== null) {
+			console.time("collidePolygonCircle");
 			this.collidePolygonCircle(other, instance);
+			console.timeEnd("collidePolygonCircle");
 			return;
 		}
 		if (instance.points !== null && other.points !== null) {

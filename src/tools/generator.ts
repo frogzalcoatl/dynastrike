@@ -50,34 +50,3 @@ export function generateRectangle(centerX: number, centerY: number, width: numbe
 		centerX - hw, centerY + hh
 	];
 }
-
-export function generateArrow(centerX: number, centerY: number, width: number, height: number, headHeightRatio: number): number[] {
-	const halfWidth: number = width / 2;
-	const halfHeight: number = height / 2;
-	const headHeight: number = height * headHeightRatio;
-	const shaftHeight: number = height - headHeight;
-	return [
-		centerX - halfWidth, centerY + halfHeight,
-		centerX + halfWidth, centerY + halfHeight,
-		centerX + halfWidth, centerY + halfHeight - shaftHeight,
-		centerX + halfWidth / 2, centerY + halfHeight - shaftHeight,
-		centerX + 0, centerY - halfHeight,
-		centerX - halfWidth / 2, centerY + halfHeight - shaftHeight,
-		centerX - halfWidth, centerY + halfHeight - shaftHeight
-	];
-}
-
-export function generateCrescent(centerX: number, centerY: number, outerRadius: number, innerRadius: number, angleOffset: number = 0, resolution: number): number[] {
-	const output: number[] = [];
-	const startAngle: number = angleOffset;
-	const endAngle: number = angleOffset + Math.PI * 2;
-	for (let i: number = 0; i <= resolution; i++) {
-		const angle: number = startAngle + (i / resolution) * (endAngle - startAngle);
-		output.push(centerX + outerRadius * Math.cos(angle), centerY + outerRadius * Math.sin(angle));
-	}
-	for (let i: number = resolution; i >= 0; i--) {
-		const angle: number = startAngle + (i / resolution) * (endAngle - startAngle);
-		output.push(centerX + innerRadius * Math.cos(angle + Math.PI * 0.3), centerY + innerRadius * Math.sin(angle + Math.PI * 0.3));
-	}
-	return output;
-}
