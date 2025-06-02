@@ -9,12 +9,14 @@ export class Entity {
 	public position: Vector2;
 	public velocity: Vector2;
 	public radius: number;
-	public mass: number;
 	public isStatic: boolean;
 	public angle: number;
 	public angularVelocity: number;
 	public points: number[] | null;
 	public box: Box;
+	private inertiaDirty: boolean;
+	private _inertia: number;
+	private _mass: number;
 	constructor(x: number, y: number, radius: number, points: number[] | null = null) {
 		this.index = entityIndexTicker++;
 		this.position = {
@@ -26,10 +28,12 @@ export class Entity {
 			y: 0
 		};
 		this.radius = radius;
-		this.mass = 1;
 		this.isStatic = false;
 		this.angle = 0;
 		this.angularVelocity = 0;
+		this.inertiaDirty = true;
+		this._inertia = 1;
+		this._mass = 1;
 		if (points === null) {
 			this.points = null;
 			this.box = {
@@ -42,10 +46,46 @@ export class Entity {
 			this.points = [];
 			const circle: Circle = computeMEC(points.slice());
 			const factor: number = circle.radius < 1e-9 ? 0 : this.radius / circle.radius;
-			for (let i = 0; i < points.length; i += 2) {
+			for (let i: number = 0; i < points.length; i += 2) {
 				this.points.push(this.position.x + (points[i] - circle.x) * factor, this.position.y + (points[i + 1] - circle.y) * factor);
 			}
 			this.box = computeBox(this.points);
+		}
+	}
+
+	public get inertia(): number {
+		if (this.inertiaDirty) {
+			this.updateInertia();
+			this.inertiaDirty = false;
+		}
+		return this._inertia;
+	}
+
+	public get mass(): number {
+		return this._mass;
+	}
+
+	public set mass(value: number) {
+		this.inertiaDirty = true;
+		this._mass = value;
+	}
+
+	private updateInertia(): void {
+		if (this.points === null) {
+			this._inertia = 0.5 * this._mass * this.radius * this.radius;
+		} else {
+			let area2sum: number = 0;
+			let momentumSum: number = 0;
+			for (let i: number = 0, j: number = this.points.length - 2; i < this.points.length; j = i, i += 2) {
+				const pointX = this.points[i] - this.position.x;
+				const pointY = this.points[i + 1] - this.position.y;
+				const previousPointX = this.points[j] - this.position.x;
+				const previousPointY = this.points[j + 1] - this.position.y;
+				const cross = pointX * previousPointY - previousPointX * pointY;
+				area2sum += cross;
+				momentumSum += cross * (pointX * pointX + pointX * previousPointX + previousPointX * previousPointX + pointY * pointY + pointY * previousPointY + previousPointY * previousPointY);
+			}
+			this._inertia = (this._mass * momentumSum) / (6 * area2sum);
 		}
 	}
 
@@ -96,10 +136,19 @@ export class Entity {
 
 	public scaleBy(factor: number): void {
 		this.radius *= factor;
-		this.box.minX = this.position.x - this.radius;
-		this.box.minY = this.position.y - this.radius;
-		this.box.maxX = this.position.x + this.radius;
-		this.box.maxY = this.position.y + this.radius;
+		if (this.points !== null) {
+			for (let i: number = 0; i < this.points.length; i += 2) {
+				this.points[i] = this.position.x + (this.points[i] - this.position.x) * factor;
+				this.points[i + 1] = this.position.y + (this.points[i + 1] - this.position.y) * factor;
+			}
+			this.updateBox();
+		} else {
+			this.box.minX = this.position.x - this.radius;
+			this.box.minY = this.position.y - this.radius;
+			this.box.maxX = this.position.x + this.radius;
+			this.box.maxY = this.position.y + this.radius;
+		}
+		this.inertiaDirty = true;
 	}
 
 	public turnBy(radians: number): void {
@@ -118,7 +167,7 @@ export class Entity {
 	}
 
 	public tick(): void {
-		this.moveBy(this.velocity.x *= 0.9, this.velocity.y *= 0.9);
+		this.moveBy(this.velocity.x, this.velocity.y);
 		this.turnBy(this.angularVelocity);
 	}
 }

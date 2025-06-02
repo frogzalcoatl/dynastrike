@@ -24,19 +24,16 @@
 		const WIDTH = Math.min(window.innerWidth, window.innerHeight);
 		const HEIGHT = WIDTH;
 		const scene = new Dynastrike.Scene({ minX: 0, minY: 0, maxX: WIDTH, maxY: HEIGHT });
-		const other = new Dynastrike.Entity(WIDTH / 2, HEIGHT / 2, 100);
-		scene.addEntity(other);
-		other.mass = 9e99;
-		//other.isStatic = true;
-		/*for (let i = 0; i < 100; i++) {
-			const entity = new Dynastrike.Entity(WIDTH * Math.random(), HEIGHT * 0.6 * Math.random(), 15);
-			scene.addEntity(entity);
-		}*/
-		const playerEntity = new Dynastrike.Entity(WIDTH / 2, HEIGHT * 0.9, 20);
-		//playerEntity.turnBy(Math.PI / 4);
-		//playerEntity.isStatic = false;
-		//playerEntity.angularVelocity = 0.01;
+		let playerEntity = new Dynastrike.Entity(WIDTH / 2, HEIGHT * 0.8, 20);
 		scene.addEntity(playerEntity);
+		let otherEntity = new Dynastrike.Entity(WIDTH / 2, HEIGHT / 2, 100, Dynastrike.generateStar(0, 0, 1, 1, 0.5, 5));
+		scene.addEntity(otherEntity);
+		otherEntity.isStatic = true;
+		for (let i = 0; i < 0; i++) {
+			const entity = new Dynastrike.Entity(Math.random() * WIDTH, Math.random() * HEIGHT, 10 + Math.random() * 20);
+			scene.addEntity(entity);
+		}
+		//[otherEntity, playerEntity] = [playerEntity, otherEntity];
 		let commands = 0;
 		addEventListener("keydown", function (event) {
 			switch (event.code) {
@@ -112,10 +109,20 @@
 				ctx.lineTo(entity.position.x + entity.radius * Math.cos(entity.angle), entity.position.y + entity.radius * Math.sin(entity.angle));
 				ctx.closePath();
 				ctx.stroke();
+				ctx.strokeStyle = "#FFFF00";
+				ctx.beginPath();
+				ctx.moveTo(entity.position.x, entity.position.y);
+				ctx.lineTo(
+					entity.position.x + entity.velocity.x * 10,
+					entity.position.y + entity.velocity.y * 10
+				);
+				ctx.stroke();
 			}
 		}
 		function animationFrame() {
 			playerInput();
+			//const startTime = performance.now();
+			//while (performance.now() - startTime < 6) scene.tick();
 			scene.tick();
 			ctx.clearRect(0, 0, WIDTH, HEIGHT);
 			ctx.fillRect(0, 0, WIDTH, HEIGHT);
