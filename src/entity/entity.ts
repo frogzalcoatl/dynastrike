@@ -154,11 +154,11 @@ export class Entity {
 	public turnBy(radians: number): void {
 		this.angle = (((this.angle + radians) % TAU) + TAU) % TAU;
 		if (this.points !== null) {
-			const cos = Math.cos(radians);
-			const sin = Math.sin(radians);
+			const cos: number = Math.cos(radians);
+			const sin: number = Math.sin(radians);
 			for (let i = 0; i < this.points.length; i += 2) {
-				const relativeX = this.points[i] - this.position.x;
-				const relativeY = this.points[i + 1] - this.position.y;
+				const relativeX: number = this.points[i] - this.position.x;
+				const relativeY: number = this.points[i + 1] - this.position.y;
 				this.points[i] = this.position.x + relativeX * cos - relativeY * sin;
 				this.points[i + 1] = this.position.y + relativeX * sin + relativeY * cos;
 			}
@@ -167,6 +167,11 @@ export class Entity {
 	}
 
 	public tick(): void {
+		const linearFriction: number = 0.92;
+		const angularFriction: number = 0.90;
+		this.velocity.x *= linearFriction;
+		this.velocity.y *= linearFriction;
+		this.angularVelocity *= angularFriction;
 		this.moveBy(this.velocity.x, this.velocity.y);
 		this.turnBy(this.angularVelocity);
 	}

@@ -24,7 +24,7 @@
 		const WIDTH = Math.min(window.innerWidth, window.innerHeight);
 		const HEIGHT = WIDTH;
 		const scene = new Dynastrike.Scene({ minX: 0, minY: 0, maxX: WIDTH, maxY: HEIGHT });
-		let playerEntity = new Dynastrike.Entity(WIDTH / 2, HEIGHT * 0.8, 25);
+		/*let playerEntity = new Dynastrike.Entity(WIDTH / 2, HEIGHT * 0.8, 25);
 		scene.addEntity(playerEntity);
 		let otherEntity = new Dynastrike.Entity(WIDTH / 2, HEIGHT / 2, 100, Dynastrike.generateStar(0, 0, 1, 1, 0.5, 5));
 		playerEntity.isStatic = true;
@@ -32,8 +32,30 @@
 		for (let i = 0; i < 0; i++) {
 			const entity = new Dynastrike.Entity(Math.random() * WIDTH, Math.random() * HEIGHT, 10 + Math.random() * 20);
 			scene.addEntity(entity);
-		}
-		//[otherEntity, playerEntity] = [playerEntity, otherEntity];
+		}*/
+		let playerEntity = new Dynastrike.Entity(
+			WIDTH / 2,
+			HEIGHT * 0.3,
+			100,
+			Dynastrike.generateStar(0, 0, 1, 1, 0.5, 5)
+		);
+		scene.addEntity(playerEntity);
+
+		let circleEntity = new Dynastrike.Entity(
+			WIDTH / 2,
+			HEIGHT - 40,
+			40
+		);
+		circleEntity.isStatic = true;
+		scene.addEntity(circleEntity);
+
+		addEventListener("keydown", function (event) {
+			if (event.code === "KeyQ") {
+				circleEntity.scaleBy(1.1);
+			} else if (event.code === "KeyE") {
+				circleEntity.scaleBy(0.9);
+			}
+		});
 		let commands = 0;
 		addEventListener("keydown", function (event) {
 			switch (event.code) {
