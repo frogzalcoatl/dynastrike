@@ -134,6 +134,10 @@ export class Entity {
 		}
 	}
 
+	public moveTo(x: number, y: number): void {
+		this.moveBy(x - this.position.x, y - this.position.y);
+	}
+
 	public scaleBy(factor: number): void {
 		this.radius *= factor;
 		if (this.points !== null) {
@@ -151,6 +155,10 @@ export class Entity {
 		this.inertiaDirty = true;
 	}
 
+	public scaleTo(radius: number): void {
+		this.scaleBy(radius / this.radius);
+	}
+
 	public turnBy(radians: number): void {
 		this.angle = (((this.angle + radians) % TAU) + TAU) % TAU;
 		if (this.points !== null) {
@@ -166,12 +174,47 @@ export class Entity {
 		}
 	}
 
+	public turnTo(angle: number): void {
+		this.turnBy(angle - this.angle);
+	}
+
+	public applyImpulse(impulse: Vector2, contactPoint?: Vector2): void {
+		this.velocity.x += impulse.x / this.mass;
+		this.velocity.y += impulse.y / this.mass;
+		if (contactPoint !== undefined) {
+			this.angularVelocity += ((contactPoint.x - this.position.x) * impulse.y - (contactPoint.y - this.position.y) * impulse.x) / this.inertia;
+		}
+	}
+
+	public clearForces(): void {
+		this.velocity.x = 0;
+		this.velocity.y = 0;
+		this.angularVelocity = 0;
+	}
+
+	public clone(): Entity {
+		const entity: Entity = new Entity(this.position.x, this.position.y, this.radius, null);
+		entity.velocity.x = this.velocity.x;
+		entity.velocity.y = this.velocity.y;
+		entity.angle = this.angle;
+		entity.angularVelocity = this.angularVelocity;
+		entity.isStatic = this.isStatic;
+		entity._mass = this._mass;
+		entity.inertiaDirty = this.inertiaDirty;
+		entity._inertia = this._inertia;
+		if (this.points !== null) {
+			entity.points = this.points.slice();
+			entity.box = {
+				minX: this.box.minX,
+				minY: this.box.minY,
+				maxX: this.box.maxX,
+				maxY: this.box.maxY
+			};
+		}
+		return entity;
+	}
+
 	public tick(): void {
-		const linearFriction: number = 0.9;
-		const angularFriction: number = 0.9;
-		this.velocity.x *= linearFriction;
-		this.velocity.y *= linearFriction;
-		this.angularVelocity *= angularFriction;
 		this.moveBy(this.velocity.x, this.velocity.y);
 		this.turnBy(this.angularVelocity);
 	}
