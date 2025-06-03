@@ -1,7 +1,12 @@
 import { Entity } from "../entity/entity";
+import { Vector2 } from "../geometry/vector";
+import { computeAveragePoint } from "./modules/computeAveragePoint";
 import { computePenetrationAndNormal, ContactResult } from "./modules/computePenetrationAndNormal";
+import { computeSATConvex, SATResult } from "./modules/computeSATConvex";
+import { findContactPoint } from "./modules/findContactPoint";
 import { isPointInPolygon } from "./modules/isPointInPolygon";
 import { Projection, projectPointOnEdge } from "./modules/projectPointOnEdge";
+import { Triangle, triangulate } from "./modules/triangle";
 
 export class Collision {
 	public static collideCircleCircle(instance: Entity, other: Entity): void {
@@ -61,7 +66,7 @@ export class Collision {
 		if (polygonEntity.points === null || (polygonEntity.isStatic && circleEntity.isStatic)) {
 			return;
 		}
-		const circleRadiusSquared = circleEntity.radius * circleEntity.radius;
+		const circleRadiusSquared: number = circleEntity.radius * circleEntity.radius;
 		const isInside: boolean = isPointInPolygon(circleEntity.position.x, circleEntity.position.y, polygonEntity.points);
 		let sumPenetration: number = 0;
 		let accumulatedNormalXTimesPenetration: number = 0;
@@ -234,27 +239,199 @@ export class Collision {
 	}
 
 	public static collidePolygonPolygon(instance: Entity, other: Entity): void {
-		if ((instance.points === null || other.points === null) || instance.isStatic && other.isStatic) {
+		if (instance.points === null || other.points === null || (instance.isStatic && other.isStatic)) {
 			return;
 		}
+		const instanceTriangles: Triangle[] = triangulate(instance.points);
+		const otherTriangles: Triangle[] = triangulate(other.points);
+		let penetrationSum: number = 0;
+		let accumulatedNormalX: number = 0;
+		let accumulatedNormalY: number = 0;
+		let accumulatedContactX: number = 0;
+		let accumulatedContactY: number = 0;
+		let contactCount: number = 0;
+		let maxPenetration: number = 0;
+		let maxNormalX: number = 0;
+		let maxNormalY: number = 0;
+		let maxContactX: number = 0;
+		let maxContactY: number = 0;
+		for (let i: number = 0; i < instanceTriangles.length; ++i) {
+			const instanceTriangle = instanceTriangles[i];
+			for (let j: number = 0; j < otherTriangles.length; ++j) {
+				const otherTriangle = otherTriangles[j];
+				const satResult: SATResult = computeSATConvex(instanceTriangle, otherTriangle);
+				if (!satResult.collided) {
+					continue;
+				}
+				let normalX: number = satResult.normalX;
+				let normalY: number = satResult.normalY;
+				const instanceCenter: Vector2 = computeAveragePoint(instanceTriangle);
+				const otherCenter: Vector2 = computeAveragePoint(otherTriangle);
+				const distanceX: number = otherCenter.x - instanceCenter.x;
+				const distanceY: number = otherCenter.y - instanceCenter.y;
+				if (normalX * distanceX + normalY * distanceY < 0) {
+					normalX = -normalX;
+					normalY = -normalY;
+				}
+				const contactPoint: Vector2 = findContactPoint(instanceTriangle, otherTriangle);
+				penetrationSum += satResult.penetration;
+				accumulatedNormalX += normalX * satResult.penetration;
+				accumulatedNormalY += normalY * satResult.penetration;
+				accumulatedContactX += contactPoint.x * satResult.penetration;
+				accumulatedContactY += contactPoint.y * satResult.penetration;
+				contactCount++;
+				if (satResult.penetration > maxPenetration) {
+					maxPenetration = satResult.penetration;
+					maxNormalX = normalX;
+					maxNormalY = normalY;
+					maxContactX = contactPoint.x;
+					maxContactY = contactPoint.y;
+				}
+			}
+		}
+		if (contactCount === 0) {
+			return;
+		}
+		const inversePenetrationSum: number = 1 / penetrationSum;
+		const weightedNormalX: number = accumulatedNormalX * inversePenetrationSum;
+		const weightedNormalY: number = accumulatedNormalY * inversePenetrationSum;
+		const averageContactX: number = accumulatedContactX * inversePenetrationSum;
+		const averageContactY: number = accumulatedContactY * inversePenetrationSum;
+		const normalLength: number = Math.hypot(weightedNormalX, weightedNormalY);
+		let prelimNormalX: number;
+		let prelimNormalY: number;
+		const normalLengthSignificant: boolean = normalLength > 1e-6;
+		if (normalLengthSignificant) {
+			const invNormalLength: number = 1.0 / normalLength;
+			prelimNormalX = weightedNormalX * invNormalLength;
+			prelimNormalY = weightedNormalY * invNormalLength;
+		} else {
+			const fallbackLength: number = Math.hypot(maxNormalX, maxNormalY);
+			if (fallbackLength > 0) {
+				const invFallbackLength: number = 1.0 / fallbackLength;
+				prelimNormalX = maxNormalX * invFallbackLength;
+				prelimNormalY = maxNormalY * invFallbackLength;
+			} else {
+				const angle: number = Math.PI * 2 * Math.random();
+				prelimNormalX = Math.cos(angle);
+				prelimNormalY = Math.sin(angle);
+			}
+		}
+		const distanceX: number = other.position.x - instance.position.x;
+		const distanceY: number = other.position.y - instance.position.y;
+		const distance: number = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+		let axisX: number = 0;
+		let axisY: number = 0;
+		if (distance > 1e-9) {
+			const invEntDistance: number = 1.0 / distance;
+			axisX = distanceX * invEntDistance;
+			axisY = distanceY * invEntDistance;
+		} else {
+			const angle: number = Math.PI * 2 * Math.random();
+			axisX = Math.cos(angle);
+			axisY = Math.sin(angle);
+		}
+		const dotAxis: number = prelimNormalX * axisX + prelimNormalY * axisY;
+		let finalNormalX: number = 0;
+		let finalNormalY: number = 0;
+		let contactX: number = 0;
+		let contactY: number = 0;
+
+		if (Math.abs(dotAxis) > 1.0 - 1e-6) {
+			const sign: number = (dotAxis < 0) ? -1 : 1;
+			finalNormalX = axisX * sign;
+			finalNormalY = axisY * sign;
+			contactX = (instance.position.x + other.position.x) * 0.5;
+			contactY = (instance.position.y + other.position.y) * 0.5;
+		} else {
+			finalNormalX = prelimNormalX;
+			finalNormalY = prelimNormalY;
+			if (normalLengthSignificant) {
+				contactX = averageContactX;
+				contactY = averageContactY;
+			} else {
+				contactX = maxContactX;
+				contactY = maxContactY;
+			}
+		}
+		const relativeInstanceX: number = contactX - instance.position.x;
+		const relativeInstanceY: number = contactY - instance.position.y;
+		const relativeOtherX: number = contactX - other.position.x;
+		const relativeOtherY: number = contactY - other.position.y;
+		const instanceContactVelocityX: number = instance.velocity.x - instance.angularVelocity * relativeInstanceY;
+		const instanceContactVelocityY: number = instance.velocity.y + instance.angularVelocity * relativeInstanceX;
+		const otherContactVelocityX: number = other.velocity.x - other.angularVelocity * relativeOtherY;
+		const otherContactVelocityY: number = other.velocity.y + other.angularVelocity * relativeOtherX;
+		const relativeVelocityX: number = otherContactVelocityX - instanceContactVelocityX;
+		const relativeVelocityY: number = otherContactVelocityY - instanceContactVelocityY;
+		const velocityAlongNormal: number = relativeVelocityX * finalNormalX + relativeVelocityY * finalNormalY;
+		const shouldSkipImpulse: boolean = velocityAlongNormal > 0;
+		const inverseInstanceMass: number = 1 / instance.mass;
+		const inverseOtherMass: number = 1 / other.mass;
+		let inverseInstInertia = 0;
+		if (!instance.isStatic && instance.inertia > 1e-9) {
+			inverseInstInertia = 1 / instance.inertia;
+		}
+		let inverseOtherInertia = 0;
+		if (!other.isStatic && other.inertia > 1e-9) {
+			inverseOtherInertia = 1 / other.inertia;
+		}
+		const relativeInstanceCrossNormal: number = relativeInstanceX * finalNormalY - relativeInstanceY * finalNormalX;
+		const relativeOtherCrossNormal: number = relativeOtherX * finalNormalY - relativeOtherY * finalNormalX;
+		const instanceRotationalInertia: number = relativeInstanceCrossNormal * relativeInstanceCrossNormal * inverseInstInertia;
+		const otherRotationalInertia: number = relativeOtherCrossNormal * relativeOtherCrossNormal * inverseOtherInertia;
+		const denominator: number = inverseInstanceMass + inverseOtherMass + instanceRotationalInertia + otherRotationalInertia;
+		if (denominator > 1e-9 && !shouldSkipImpulse) {
+			const impulseMagnitude: number = -2 * velocityAlongNormal / denominator;
+			const impulseX: number = impulseMagnitude * finalNormalX;
+			const impulseY: number = impulseMagnitude * finalNormalY;
+			if (!instance.isStatic) {
+				instance.velocity.x -= impulseX * inverseInstanceMass;
+				instance.velocity.y -= impulseY * inverseInstanceMass;
+				instance.angularVelocity -= (relativeInstanceCrossNormal * impulseMagnitude) * inverseInstInertia;
+			}
+			if (!other.isStatic) {
+				other.velocity.x += impulseX * inverseOtherMass;
+				other.velocity.y += impulseY * inverseOtherMass;
+				other.angularVelocity += (relativeOtherCrossNormal * impulseMagnitude) * inverseOtherInertia;
+			}
+			if (!instance.isStatic && Math.abs(instance.angularVelocity) < 1e-5) {
+				instance.angularVelocity = 0;
+			}
+			if (!other.isStatic && Math.abs(other.angularVelocity) < 1e-5) {
+				other.angularVelocity = 0;
+			}
+		}
+		let instanceMoveFactor: number = 0;
+		let otherMoveFactor: number = 0;
+		if (instance.isStatic) {
+			otherMoveFactor = 1;
+		} else if (other.isStatic) {
+			instanceMoveFactor = 1;
+		} else {
+			const totalMass: number = instance.mass + other.mass;
+			instanceMoveFactor = other.mass / totalMass;
+			otherMoveFactor = instance.mass / totalMass;
+		}
+		const moveDistanceX: number = finalNormalX * penetrationSum;
+		const moveDistanceY: number = finalNormalY * penetrationSum;
+		instance.moveBy(-moveDistanceX * instanceMoveFactor, -moveDistanceY * instanceMoveFactor);
+		other.moveBy(moveDistanceX * otherMoveFactor, moveDistanceY * otherMoveFactor);
 	}
 
 	public static collide(instance: Entity, other: Entity): void {
-		if (instance.points === null && other.points === null) {
-			this.collideCircleCircle(instance, other);
-			return;
-		}
-		if (instance.points !== null && other.points === null) {
-			this.collidePolygonCircle(instance, other);
-			return;
-		}
-		if (instance.points === null && other.points !== null) {
-			this.collidePolygonCircle(other, instance);
-			return;
-		}
-		if (instance.points !== null && other.points !== null) {
-			this.collidePolygonPolygon(instance, other);
-			return;
+		if (instance.points === null) {
+			if (other.points === null) {
+				this.collideCircleCircle(instance, other);
+			} else {
+				this.collidePolygonCircle(other, instance);
+			}
+		} else {
+			if (other.points === null) {
+				this.collidePolygonCircle(instance, other);
+			} else {
+				this.collidePolygonPolygon(instance, other);
+			}
 		}
 	}
 }
