@@ -44,13 +44,13 @@ export class Scene {
 
 	}
 
-	public tick(): void {
+	public update(): void {
 		this.quadTree.clear();
 		const processedCollisions: Set<number> = new Set<number>();
 		const length: number = this.entities.length;
 		for (let i: number = 0; i < length; i++) {
 			const instance: Entity = this.entities[i];
-			instance.tick();
+			instance.update();
 			const potentialColliders: Set<Entity> = this.quadTree.query(instance.box);
 			this.quadTree.insert(instance);
 			for (const other of potentialColliders) {

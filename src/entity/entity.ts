@@ -1,108 +1,152 @@
-import { Box, computeBox } from "../geometry/box";
+import { Box } from "../geometry/box";
 import { Circle, computeMEC } from "../geometry/mec";
 import { Vector2 } from "../geometry/vector";
 
-const TAU = Math.PI * 2;
-let entityIndexTicker: number = 1;
+const TAU: number = Math.PI * 2;
+
 export class Entity {
-	public index: number;
-	public position: Vector2;
-	public velocity: Vector2;
-	public radius: number;
-	public isStatic: boolean;
-	public angle: number;
-	public angularVelocity: number;
-	public points: number[] | null;
-	public box: Box;
-	private inertiaDirty: boolean;
-	private _inertia: number;
-	private _mass: number;
-	constructor(x: number, y: number, radius: number, points: number[] | null = null) {
-		this.index = entityIndexTicker++;
-		this.position = {
-			x: x,
-			y: y
-		};
-		this.velocity = {
-			x: 0,
-			y: 0
-		};
-		this.radius = radius;
-		this.isStatic = false;
-		this.angle = 0;
-		this.angularVelocity = 0;
-		this.inertiaDirty = true;
-		this._inertia = 1;
-		this._mass = 1;
+	private static entityIndexTicker: number = 0;
+	private _position: Vector2 = { x: 0, y: 0 };
+	public positionalVelocity: Vector2 = { x: 0, y: 0 };
+	private _angle: number = 0;
+	public angularVelocity: number = 0;
+	private _mass: number = 1;
+	private _inertiaDirty: boolean = true;
+	private _inertia: number = 1;
+	private _radius: number = 1;
+	public isStatic: boolean = false;
+	public box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+	public points: number[] | null = null;
+	public readonly index: number = ++Entity.entityIndexTicker;
+	public constructor(positionX: number, positionY: number, radius: number, points: number[] | null = null) {
+		this._position.x = positionX;
+		this._position.y = positionY;
+		this._radius = radius;
 		if (points === null) {
-			this.points = null;
-			this.box = {
-				minX: this.position.x - radius,
-				minY: this.position.y - radius,
-				maxX: this.position.x + radius,
-				maxY: this.position.y + radius
-			};
+			this.box.minX = this._position.x - radius;
+			this.box.minY = this._position.y - radius;
+			this.box.maxX = this._position.x + radius;
+			this.box.maxY = this._position.y + radius;
 		} else {
 			this.points = [];
 			const circle: Circle = computeMEC(points.slice());
-			const factor: number = circle.radius < 1e-9 ? 0 : this.radius / circle.radius;
+			const factor: number = circle.radius < 1e-9 ? 0 : this._radius / circle.radius;
 			for (let i: number = 0; i < points.length; i += 2) {
-				this.points.push(this.position.x + (points[i] - circle.x) * factor, this.position.y + (points[i + 1] - circle.y) * factor);
+				this.points.push(this._position.x + (points[i] - circle.x) * factor, this._position.y + (points[i + 1] - circle.y) * factor);
 			}
-			this.box = computeBox(this.points);
+			this.updateBox();
 		}
 	}
 
-	public get inertia(): number {
-		if (this.inertiaDirty) {
-			this.updateInertia();
-			this.inertiaDirty = false;
+	public get positionX(): number {
+		return this._position.x;
+	}
+
+	public set positionX(x: number) {
+		const distance: number = x - this._position.x;
+		this._position.x = x;
+		this.box.minX += distance;
+		this.box.maxX += distance;
+		if (this.points === null) {
+			return;
 		}
-		return this._inertia;
+		for (let i: number = 0; i < this.points.length; i += 2) {
+			this.points[i] += distance;
+		}
+	}
+
+	public get positionY(): number {
+		return this._position.y;
+	}
+
+	public set positionY(y: number) {
+		const distance: number = y - this._position.y;
+		this._position.y = y;
+		this.box.minY += distance;
+		this.box.maxY += distance;
+		if (this.points === null) {
+			return;
+		}
+		for (let i: number = 1; i < this.points.length; i += 2) {
+			this.points[i] += distance;
+		}
+	}
+
+	public get angle(): number {
+		return this._angle;
+	}
+
+	public set angle(angle: number) {
+		const delta: number = angle - this._angle;
+		this._angle = (((angle % TAU) + TAU) % TAU);
+		if (this.points === null) {
+			return;
+		}
+		const cos: number = Math.cos(delta);
+		const sin: number = Math.sin(delta);
+		for (let i = 0; i < this.points.length; i += 2) {
+			const relativeX: number = this.points[i] - this._position.x;
+			const relativeY: number = this.points[i + 1] - this._position.y;
+			this.points[i] = this._position.x + relativeX * cos - relativeY * sin;
+			this.points[i + 1] = this._position.y + relativeX * sin + relativeY * cos;
+		}
+		this.updateBox();
 	}
 
 	public get mass(): number {
 		return this._mass;
 	}
 
-	public set mass(value: number) {
-		this.inertiaDirty = true;
-		this._mass = value;
+	public set mass(mass: number) {
+		this._mass = mass;
+		this._inertiaDirty = true;
 	}
 
-	private updateInertia(): void {
+	public get radius(): number {
+		return this._radius;
+	}
+
+	public set radius(radius: number) {
+		this._inertiaDirty = true;
 		if (this.points === null) {
-			this._inertia = 0.5 * this._mass * this.radius * this.radius;
-		} else {
-			let area2sum: number = 0;
-			let momentumSum: number = 0;
-			for (let i: number = 0, j: number = this.points.length - 2; i < this.points.length; j = i, i += 2) {
-				const pointX = this.points[i] - this.position.x;
-				const pointY = this.points[i + 1] - this.position.y;
-				const previousPointX = this.points[j] - this.position.x;
-				const previousPointY = this.points[j + 1] - this.position.y;
-				const cross = pointX * previousPointY - previousPointX * pointY;
-				area2sum += cross;
-				momentumSum += cross * (pointX * pointX + pointX * previousPointX + previousPointX * previousPointX + pointY * pointY + pointY * previousPointY + previousPointY * previousPointY);
-			}
-			this._inertia = (this._mass * momentumSum) / (6 * area2sum);
+			this._radius = radius;
+			this.box.minX = this._position.x - radius;
+			this.box.minY = this._position.y - radius;
+			this.box.maxX = this._position.x + radius;
+			this.box.maxY = this._position.y + radius;
+			return;
 		}
+		const factor = radius / this._radius;
+		this._radius = radius;
+		for (let i: number = 0; i < this.points.length; i += 2) {
+			this.points[i] = this._position.x + (this.points[i] - this._position.x) * factor;
+			this.points[i + 1] = this._position.y + (this.points[i + 1] - this._position.y) * factor;
+		}
+		this.updateBox();
 	}
 
-	public updateBox(): void {
+	public get inertia(): number {
+		if (this._inertiaDirty) {
+			this._inertiaDirty = false;
+			this.updateInertia();
+		}
+		return this._inertia;
+	}
+
+	private updateBox(): void {
 		if (this.points === null) {
-			this.box.minX = this.position.x - this.radius;
-			this.box.minY = this.position.y - this.radius;
-			this.box.maxX = this.position.x + this.radius;
-			this.box.maxY = this.position.y + this.radius;
+			this.box.minX = this._position.x - this._radius;
+			this.box.minY = this._position.y - this._radius;
+			this.box.maxX = this._position.x + this._radius;
+			this.box.maxY = this._position.y + this._radius;
 		} else {
 			this.box.minX = this.points[0];
 			this.box.minY = this.points[1];
 			this.box.maxX = this.points[0];
 			this.box.maxY = this.points[1];
-			for (let i = 2; i < this.points.length; i += 2) {
-				const pointX = this.points[i];
-				const pointY = this.points[i + 1];
+			for (let i: number = 2; i < this.points.length; i += 2) {
+				const pointX: number = this.points[i];
+				const pointY: number = this.points[i + 1];
 				if (this.box.minX > pointX) {
 					this.box.minX = pointX;
 				}
@@ -119,103 +163,86 @@ export class Entity {
 		}
 	}
 
-	public moveBy(x: number, y: number): void {
-		this.position.x += x;
-		this.position.y += y;
-		this.box.minX += x;
-		this.box.minY += y;
-		this.box.maxX += x;
-		this.box.maxY += y;
-		if (this.points !== null) {
-			for (let i = 0; i < this.points.length; i += 2) {
-				this.points[i] += x;
-				this.points[i + 1] += y;
-			}
+	private updateInertia(): void {
+		if (this.points === null) {
+			this._inertia = 0.5 * this._mass * this._radius * this._radius;
+			return;
 		}
-	}
-
-	public moveTo(x: number, y: number): void {
-		this.moveBy(x - this.position.x, y - this.position.y);
-	}
-
-	public scaleBy(factor: number): void {
-		this.radius *= factor;
-		if (this.points !== null) {
-			for (let i: number = 0; i < this.points.length; i += 2) {
-				this.points[i] = this.position.x + (this.points[i] - this.position.x) * factor;
-				this.points[i + 1] = this.position.y + (this.points[i + 1] - this.position.y) * factor;
-			}
-			this.updateBox();
-		} else {
-			this.box.minX = this.position.x - this.radius;
-			this.box.minY = this.position.y - this.radius;
-			this.box.maxX = this.position.x + this.radius;
-			this.box.maxY = this.position.y + this.radius;
+		let area2Sum: number = 0;
+		let momentumSum: number = 0;
+		for (let i: number = 0, j: number = this.points.length - 2; i < this.points.length; j = i, i += 2) {
+			const currentPointX: number = this.points[i] - this._position.x;
+			const currentPointY: number = this.points[i + 1] - this._position.y;
+			const previousPointX: number = this.points[j] - this._position.x;
+			const previousPointY: number = this.points[j + 1] - this._position.y;
+			const cross: number = currentPointX * previousPointY - previousPointX * currentPointY;
+			area2Sum += cross;
+			momentumSum += cross * (currentPointX * currentPointX + currentPointX * previousPointX + previousPointX * previousPointX + currentPointY * currentPointY + currentPointY * previousPointY + previousPointY * previousPointY);
 		}
-		this.inertiaDirty = true;
+		this._inertia = this._mass * momentumSum / 6 / area2Sum;
 	}
 
-	public scaleTo(radius: number): void {
-		this.scaleBy(radius / this.radius);
-	}
-
-	public turnBy(radians: number): void {
-		this.angle = (((this.angle + radians) % TAU) + TAU) % TAU;
-		if (this.points !== null) {
-			const cos: number = Math.cos(radians);
-			const sin: number = Math.sin(radians);
-			for (let i = 0; i < this.points.length; i += 2) {
-				const relativeX: number = this.points[i] - this.position.x;
-				const relativeY: number = this.points[i + 1] - this.position.y;
-				this.points[i] = this.position.x + relativeX * cos - relativeY * sin;
-				this.points[i + 1] = this.position.y + relativeX * sin + relativeY * cos;
-			}
-			this.updateBox();
+	public moveBy(distanceX: number, distanceY: number): void {
+		this._position.x += distanceX;
+		this._position.y += distanceY;
+		this.box.minX += distanceX;
+		this.box.maxX += distanceX;
+		this.box.minY += distanceY;
+		this.box.maxY += distanceY;
+		if (this.points === null) {
+			return;
 		}
-	}
-
-	public turnTo(angle: number): void {
-		this.turnBy(angle - this.angle);
-	}
-
-	public applyImpulse(impulse: Vector2, contactPoint?: Vector2): void {
-		this.velocity.x += impulse.x / this.mass;
-		this.velocity.y += impulse.y / this.mass;
-		if (contactPoint !== undefined) {
-			this.angularVelocity += ((contactPoint.x - this.position.x) * impulse.y - (contactPoint.y - this.position.y) * impulse.x) / this.inertia;
+		for (let i = 0; i < this.points.length; i += 2) {
+			this.points[i] += distanceX;
+			this.points[i + 1] += distanceY;
 		}
 	}
 
 	public clearForces(): void {
-		this.velocity.x = 0;
-		this.velocity.y = 0;
+		this.positionalVelocity.x = 0;
+		this.positionalVelocity.y = 0;
 		this.angularVelocity = 0;
 	}
 
-	public clone(): Entity {
-		const entity: Entity = new Entity(this.position.x, this.position.y, this.radius, null);
-		entity.velocity.x = this.velocity.x;
-		entity.velocity.y = this.velocity.y;
-		entity.angle = this.angle;
-		entity.angularVelocity = this.angularVelocity;
-		entity.isStatic = this.isStatic;
-		entity._mass = this._mass;
-		entity.inertiaDirty = this.inertiaDirty;
-		entity._inertia = this._inertia;
-		if (this.points !== null) {
-			entity.points = this.points.slice();
-			entity.box = {
-				minX: this.box.minX,
-				minY: this.box.minY,
-				maxX: this.box.maxX,
-				maxY: this.box.maxY
-			};
+	private applyImpulse(impulse: Vector2, contactPoint: Vector2 | null = null): void {
+		this.positionalVelocity.x += impulse.x / this._mass;
+		this.positionalVelocity.y += impulse.x / this._mass;
+		if (contactPoint === null || this.points === null) {
+			return;
 		}
-		return entity;
+		this.angularVelocity += ((contactPoint.x - this._position.x) * impulse.x - (contactPoint.y - this._position.y) * impulse.x) / this.inertia;
 	}
 
-	public tick(): void {
-		this.moveBy(this.velocity.x, this.velocity.y);
-		this.turnBy(this.angularVelocity);
+	public clone(): Entity {
+		const cloneEntity: Entity = new Entity(this._position.x, this._position.y, this._radius, null);
+		cloneEntity.positionalVelocity.x = this.positionalVelocity.x;
+		cloneEntity.positionalVelocity.y = this.positionalVelocity.y;
+		cloneEntity.angle = this.angle;
+		cloneEntity.angularVelocity = this.angularVelocity;
+		cloneEntity.isStatic = this.isStatic;
+		cloneEntity._mass = this._mass;
+		cloneEntity._inertiaDirty = this._inertiaDirty;
+		cloneEntity._inertia = this._inertia;
+		if (this.points === null) {
+			return cloneEntity;
+		}
+		cloneEntity.points = this.points.slice();
+		cloneEntity.box.minX = this.box.minX;
+		cloneEntity.box.minY = this.box.minY;
+		cloneEntity.box.maxX = this.box.maxX;
+		cloneEntity.box.maxY = this.box.maxY;
+		return cloneEntity;
+	}
+
+	public update(): void {
+		if (Math.abs(this.positionalVelocity.x) > 1e-9) {
+			this.positionX += this.positionalVelocity.x;
+		}
+		if (Math.abs(this.positionalVelocity.y) > 1e-9) {
+			this.positionY += this.positionalVelocity.y;
+		}
+		if (Math.abs(this.angularVelocity) > 1e-9) {
+			this.angle += this.angularVelocity;
+		}
 	}
 }
