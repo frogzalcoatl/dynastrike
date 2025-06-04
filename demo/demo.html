@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Dynastrike Demo</title>
+	<style>
+		body {
+			width: 100%;
+			height: 100%;
+			border: 0;
+			margin: 0;
+			padding: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background-color: #202020;
+		}
+	</style>
+</head>
+
+<body>
+	<script src="../dist/dynastrike.global.js"></script>
+	<script>
+		const scene = new Dynastrike.Scene({
+			minX: -2048,
+			minY: -2048,
+			maxX: 2048,
+			maxY: 2048
+		});
+		const playerEntity = new Dynastrike.Entity(0, 0, 50);
+		const generators = [
+			() => Dynastrike.generatePolygon(0, 0, 1, 3 + Math.floor(3 * Math.random())),
+			() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(3 * Math.random())),
+			() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * Math.random()))
+		]
+		scene.addEntity(playerEntity);
+		for (let i = 0; i < 250; i++) {
+			const angle = Math.random() * Math.PI * 2;
+			const distance = 400 + Math.random() * 2048;
+			const radius = 20 + Math.random() * (Math.random() / 2 + 0.5) * 60;
+			scene.addEntity(new Dynastrike.Entity(Math.cos(angle) * distance, Math.sin(angle) * distance, radius, generators[Math.floor(generators.length * Math.random() * Math.random() * Math.random())]()));
+		}
+		const canvasElement = document.createElement("canvas");
+		document.body.appendChild(canvasElement);
+		const ctx = canvasElement.getContext("2d", { alpha: false, willReadFrequently: false, desynchronized: true });
+		function resizeEvent() {
+			canvasElement.width = window.innerWidth;
+			canvasElement.height = window.innerHeight;
+		}
+		window.addEventListener("resize", () => resizeEvent());
+		resizeEvent();
+		let commands = 0;
+		addEventListener("keydown", function (event) {
+			switch (event.code) {
+				case "KeyW": commands |= 1; break;
+				case "KeyS": commands |= 2; break;
+				case "KeyA": commands |= 4; break;
+				case "KeyD": commands |= 8; break;
+			}
+		});
+		addEventListener("keyup", function (event) {
+			switch (event.code) {
+				case "KeyW": commands &= ~1; break;
+				case "KeyS": commands &= ~2; break;
+				case "KeyA": commands &= ~4; break;
+				case "KeyD": commands &= ~8; break;
+			}
+		});
+		function playerInput() {
+			if (commands & 1) {
+				playerEntity.positionalVelocity.y -= 0.1;
+			}
+			if (commands & 2) {
+				playerEntity.positionalVelocity.y += 0.1;
+			}
+			if (commands & 4) {
+				playerEntity.positionalVelocity.x -= 0.1;
+			}
+			if (commands & 8) {
+				playerEntity.positionalVelocity.x += 0.1;
+			}
+		}
+		let cameraX = 0;
+		let cameraY = 0;
+		let draggingEntity = null;
+		let dragOffset = { x: 0, y: 0 };
+		canvasElement.addEventListener("mousedown", function (event) {
+			const boundingRectangle = canvasElement.getBoundingClientRect();
+			const mouseX = event.clientX - boundingRectangle.left;
+			const mouseY = event.clientY - boundingRectangle.top;
+			const worldX = mouseX - canvasElement.width / 2 + cameraX;
+			const worldY = mouseY - canvasElement.height / 2 + cameraY;
+			const candidates = scene.quadTree.query({ minX: worldX, minY: worldY, maxX: worldX, maxY: worldY });
+			let closestEntity = null;
+			let closestDistance = Infinity;
+			for (const entity of candidates) {
+				const distanceX = worldX - entity.positionX;
+				const distanceY = worldY - entity.positionY;
+				const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+				if (distance <= entity.radius && distance < closestDistance) {
+					closestEntity = entity;
+					closestDistance = distance;
+					dragOffset.x = distanceX;
+					dragOffset.y = distanceY;
+				}
+			}
+			if (closestEntity) {
+				draggingEntity = closestEntity;
+			}
+		});
+		canvasElement.addEventListener("mousemove", function (event) {
+			if (draggingEntity !== null) {
+				const boundingRectangle = canvasElement.getBoundingClientRect();
+				const mouseX = event.clientX - boundingRectangle.left;
+				const mouseY = event.clientY - boundingRectangle.top;
+				const worldX = mouseX - canvasElement.width / 2 + cameraX;
+				const worldY = mouseY - canvasElement.height / 2 + cameraY;
+				draggingEntity.moveBy((worldX - dragOffset.x) - draggingEntity.positionX, (worldY - dragOffset.y) - draggingEntity.positionY);
+				draggingEntity.clearForces();
+			}
+		});
+		canvasElement.addEventListener("mouseup", function () {
+			draggingEntity = null;
+		});
+		canvasElement.addEventListener("mouseleave", function () {
+			draggingEntity = null;
+		});
+		const mixColorCache = new Map();
+		function hexToRgb(hex) {
+			let n = parseInt(hex.slice(1), 16);
+			return [(n >> 16) & 0xFF, (n >> 8) & 0xFF, n & 0xFF];
+		}
+		function mixColor(hex1, hex2, mix) {
+			const key = `${hex1}${hex2}${mix.toFixed(2)}`;
+			if (mixColorCache.has(key)) {
+				return mixColorCache.get(key);
+			}
+			const rgb1 = hexToRgb(hex1);
+			const rgb2 = hexToRgb(hex2);
+			const red = (rgb1[0] + ((rgb2[0] - rgb1[0]) * mix)) | 0;
+			const green = (rgb1[1] + ((rgb2[1] - rgb1[1]) * mix)) | 0;
+			const blue = (rgb1[2] + ((rgb2[2] - rgb1[2]) * mix)) | 0;
+			const result = `#${((1 << 24) | (red << 16) | (green << 8) | blue).toString(16).slice(1)}`;
+			mixColorCache.set(key, result);
+			return result;
+		}
+		const gridOffscreenCanvas = new OffscreenCanvas(256, 256);
+		const gridOffscreenCtx = gridOffscreenCanvas.getContext("2d");
+		gridOffscreenCtx.clearRect(0, 0, gridOffscreenCanvas.width, gridOffscreenCanvas.height);
+		gridOffscreenCtx.strokeStyle = "#506020";
+		gridOffscreenCtx.lineWidth = 1;
+		for (let x = 0; x <= gridOffscreenCanvas.width; x += 32) {
+			gridOffscreenCtx.beginPath();
+			gridOffscreenCtx.moveTo(x, 0);
+			gridOffscreenCtx.lineTo(x, gridOffscreenCanvas.height);
+			gridOffscreenCtx.stroke();
+		}
+		for (let y = 0; y <= gridOffscreenCanvas.height; y += 32) {
+			gridOffscreenCtx.beginPath();
+			gridOffscreenCtx.moveTo(0, y);
+			gridOffscreenCtx.lineTo(gridOffscreenCanvas.width, y);
+			gridOffscreenCtx.stroke();
+		}
+		function drawBackground() {
+			const viewMinX = cameraX - canvasElement.width / 2;
+			const viewMinY = cameraY - canvasElement.height / 2;
+			const viewMaxX = cameraX + canvasElement.width / 2;
+			const viewMaxY = cameraY + canvasElement.height / 2;
+			const backgroundMinX = Math.max(scene.box.minX, viewMinX);
+			const backgroundMinY = Math.max(scene.box.minY, viewMinY);
+			const backgroundMaxX = Math.min(scene.box.maxX, viewMaxX);
+			const backgroundMaxY = Math.min(scene.box.maxY, viewMaxY);
+			ctx.fillStyle = "#708040";
+			ctx.fillRect(backgroundMinX, backgroundMinY, backgroundMaxX - backgroundMinX, backgroundMaxY - backgroundMinY);
+			const pattern = ctx.createPattern(gridOffscreenCanvas, "repeat");
+			ctx.fillStyle = pattern;
+			ctx.fillRect(backgroundMinX, backgroundMinY, backgroundMaxX - backgroundMinX, backgroundMaxY - backgroundMinY);
+		}
+		const colors = ["#AAAA00", "#202020", "#7a7ab3", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
+		function drawEntities() {
+			const viewEntities = scene.quadTree.query({
+				minX: cameraX - canvasElement.width / 2,
+				minY: cameraY - canvasElement.height / 2,
+				maxX: cameraX + canvasElement.width / 2,
+				maxY: cameraY + canvasElement.height / 2
+			});
+			for (const entity of viewEntities) {
+				const color = colors[entity.index % colors.length];
+				ctx.fillStyle = color;
+				ctx.strokeStyle = mixColor(color, "#000000", 0.35);
+				ctx.beginPath();
+				if (entity.points === null) {
+					ctx.arc(entity.positionX, entity.positionY, entity.radius, 0, Math.PI * 2);
+				} else {
+					ctx.moveTo(entity.points[0], entity.points[1]);
+					for (let i = 2; i < entity.points.length; i += 2) {
+						ctx.lineTo(entity.points[i], entity.points[i + 1]);
+					}
+				}
+				ctx.closePath();
+				ctx.fill();
+			}
+		}
+		function animationFrame() {
+			playerInput();
+			scene.update();
+			cameraX = cameraX + (playerEntity.positionX - cameraX) * 0.05;
+			cameraY = cameraY + (playerEntity.positionY - cameraY) * 0.05;
+			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+			ctx.fillStyle = "#506020";
+			ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+			ctx.save();
+			ctx.translate(canvasElement.width / 2 - cameraX, canvasElement.height / 2 - cameraY);
+			drawBackground();
+			drawEntities();
+			ctx.restore();
+			requestAnimationFrame(animationFrame);
+		}
+		requestAnimationFrame(animationFrame);
+	</script>
+</body>
+
+</html>

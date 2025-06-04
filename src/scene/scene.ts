@@ -19,9 +19,11 @@ function getPairIndex(index1: number, index2: number): number {
 export class Scene {
 	public entities: Entity[];
 	public quadTree: QuadTree;
+	public box: Box;
 	constructor(box: Box) {
 		this.entities = [];
 		this.quadTree = new QuadTree(box, 7);
+		this.box = box;
 	}
 
 	public addEntity(entity: Entity): number {
