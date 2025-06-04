@@ -383,37 +383,36 @@ export class Collision {
 		const relativeVelocityX: number = otherContactVelocityX - instanceContactVelocityX;
 		const relativeVelocityY: number = otherContactVelocityY - instanceContactVelocityY;
 		const velocityAlongNormal: number = relativeVelocityX * finalNormalX + relativeVelocityY * finalNormalY;
-		if (velocityAlongNormal > 0) {
-			return;
-		}
-		const inverseInstanceMass: number = instance.isStatic ? 0 : 1 / instance.mass;
-		const inverseOtherMass: number = other.isStatic ? 0 : 1 / other.mass;
-		let inverseInstanceInertia: number = 0;
-		if (!instance.isStatic && instance.inertia > 1e-9) {
-			inverseInstanceInertia = 1 / instance.inertia;
-		}
-		let inverseOtherInertia: number = 0;
-		if (!other.isStatic && other.inertia > 1e-9) {
-			inverseOtherInertia = 1 / other.inertia;
-		}
-		const relativeInstanceCrossNormal: number = relativeInstanceX * finalNormalY - relativeInstanceY * finalNormalX;
-		const relativeOtherCrossNormal: number = relativeOtherX * finalNormalY - relativeOtherY * finalNormalX;
-		const instanceRotationalInertia: number = relativeInstanceCrossNormal * relativeInstanceCrossNormal * inverseInstanceInertia;
-		const otherRotationalInertia: number = relativeOtherCrossNormal * relativeOtherCrossNormal * inverseOtherInertia;
-		const denominator: number = inverseInstanceMass + inverseOtherMass + instanceRotationalInertia + otherRotationalInertia;
-		if (denominator > 1e-9) {
-			const impulseMagnitude: number = -2 * velocityAlongNormal / denominator;
-			const impulseX: number = impulseMagnitude * finalNormalX;
-			const impulseY: number = impulseMagnitude * finalNormalY;
-			if (!instance.isStatic) {
-				instance.positionalVelocity.x -= impulseX * inverseInstanceMass;
-				instance.positionalVelocity.y -= impulseY * inverseInstanceMass;
-				instance.angularVelocity -= (relativeInstanceCrossNormal * impulseMagnitude) * inverseInstanceInertia;
+		if (velocityAlongNormal <= 0) {
+			const inverseInstanceMass: number = instance.isStatic ? 0 : 1 / instance.mass;
+			const inverseOtherMass: number = other.isStatic ? 0 : 1 / other.mass;
+			let inverseInstanceInertia: number = 0;
+			if (!instance.isStatic && instance.inertia > 1e-9) {
+				inverseInstanceInertia = 1 / instance.inertia;
 			}
-			if (!other.isStatic) {
-				other.positionalVelocity.x += impulseX * inverseOtherMass;
-				other.positionalVelocity.y += impulseY * inverseOtherMass;
-				other.angularVelocity += (relativeOtherCrossNormal * impulseMagnitude) * inverseOtherInertia;
+			let inverseOtherInertia: number = 0;
+			if (!other.isStatic && other.inertia > 1e-9) {
+				inverseOtherInertia = 1 / other.inertia;
+			}
+			const relativeInstanceCrossNormal: number = relativeInstanceX * finalNormalY - relativeInstanceY * finalNormalX;
+			const relativeOtherCrossNormal: number = relativeOtherX * finalNormalY - relativeOtherY * finalNormalX;
+			const instanceRotationalInertia: number = relativeInstanceCrossNormal * relativeInstanceCrossNormal * inverseInstanceInertia;
+			const otherRotationalInertia: number = relativeOtherCrossNormal * relativeOtherCrossNormal * inverseOtherInertia;
+			const denominator: number = inverseInstanceMass + inverseOtherMass + instanceRotationalInertia + otherRotationalInertia;
+			if (denominator > 1e-9) {
+				const impulseMagnitude: number = -2 * velocityAlongNormal / denominator;
+				const impulseX: number = impulseMagnitude * finalNormalX;
+				const impulseY: number = impulseMagnitude * finalNormalY;
+				if (!instance.isStatic) {
+					instance.positionalVelocity.x -= impulseX * inverseInstanceMass;
+					instance.positionalVelocity.y -= impulseY * inverseInstanceMass;
+					instance.angularVelocity -= (relativeInstanceCrossNormal * impulseMagnitude) * inverseInstanceInertia;
+				}
+				if (!other.isStatic) {
+					other.positionalVelocity.x += impulseX * inverseOtherMass;
+					other.positionalVelocity.y += impulseY * inverseOtherMass;
+					other.angularVelocity += (relativeOtherCrossNormal * impulseMagnitude) * inverseOtherInertia;
+				}
 			}
 		}
 		let instanceMoveFactor: number = 0;
@@ -444,9 +443,7 @@ export class Collision {
 			if (other.points === null) {
 				this.collidePolygonCircle(instance, other);
 			} else {
-				console.time("collidePolygonPolygon");
 				this.collidePolygonPolygon(instance, other);
-				console.timeEnd("collidePolygonPolygon");
 			}
 		}
 	}
