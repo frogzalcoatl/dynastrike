@@ -9,7 +9,6 @@ interface QuadTreeChildren {
 }
 
 export class QuadTree {
-	public static maxEntities: number = 8;
 	public box: Box;
 	public level: number;
 	public children: QuadTreeChildren | null;
@@ -42,7 +41,7 @@ export class QuadTree {
 	public insert(entity: Entity): void {
 		if (this.children === null) {
 			this.entities.push(entity);
-			if (this.level > 0 && this.entities.length > 8) {
+			if (this.level > 0 && this.entities.length > 5) {
 				this.split();
 			}
 			return;
