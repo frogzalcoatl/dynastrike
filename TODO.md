@@ -1,5 +1,5 @@
 # TODO
-- [ ] Implement better boundaries.
+- [x] Implement better boundaries.
 - [ ] Fix collidePolygonPolygon seperating incorrectly.
 - [ ] Consider adding density based mass.
 - [ ] Dynamic quadtrees with no rebuild and no recursive calls.

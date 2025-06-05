@@ -75,6 +75,7 @@ export class Scene {
 				}
 				processedCollisions.add(pairIndex);
 				Collision.collide(instance, other);
+				this.earthlyShackles(other);
 			}
 			this.earthlyShackles(instance);
 		}

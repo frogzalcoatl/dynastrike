@@ -29,16 +29,24 @@
 			maxX: 2048,
 			maxY: 2048
 		});
-		const playerEntity = new Dynastrike.Entity(0, 0, 50, Dynastrike.generatePolygon(0, 0, 1, 3));
-		playerEntity.mass = 1;
-		scene.addEntity(playerEntity);
 		const generators = [
 			() => null,
 			() => Dynastrike.generatePolygon(0, 0, 1, 3 + Math.floor(4 * Math.random())),
 			() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * Math.random())),
 			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * Math.random()))
 		]
-		for (let i = 0; i < 250; i++) {
+		for (let i = 0; i < 100; i++) {
+			const angle = Math.random() * Math.PI * 2;
+			const distance = 400 + Math.random() * 2048;
+			const radius = 20 + Math.random() * (Math.random() / 2 + 0.5) * 60;
+			const entity = new Dynastrike.Entity(Math.cos(angle) * distance, Math.sin(angle) * distance, radius, generators[Math.floor(generators.length * Math.random() * Math.random())]());
+			entity.angle = Math.PI / 4;
+			scene.addEntity(entity);
+		}
+		const playerEntity = new Dynastrike.Entity(0, 0, 500, Dynastrike.generatePolygon(0, 0, 1, 3));
+		playerEntity.isStatic = true;
+		scene.addEntity(playerEntity);
+		for (let i = 0; i < 100; i++) {
 			const angle = Math.random() * Math.PI * 2;
 			const distance = 400 + Math.random() * 2048;
 			const radius = 20 + Math.random() * (Math.random() / 2 + 0.5) * 60;
@@ -182,7 +190,7 @@
 			ctx.fillStyle = pattern;
 			ctx.fillRect(backgroundMinX, backgroundMinY, backgroundMaxX - backgroundMinX, backgroundMaxY - backgroundMinY);
 		}
-		const colors = ["#AAAA00", "#202020", "#7a7ab3", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
+		const colors = ["#AAAA00", "#202020", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
 		function drawEntities() {
 			const viewEntities = scene.quadTree.query({
 				minX: cameraX - canvasElement.width / 2,
