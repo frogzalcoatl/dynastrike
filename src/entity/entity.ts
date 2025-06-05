@@ -1,6 +1,7 @@
 import { Box } from "../geometry/box";
 import { Circle, computeMEC } from "../geometry/mec";
 import { Vector2 } from "../geometry/vector";
+import { isPointInPolygon } from "../physics/utilities";
 
 const TAU: number = Math.PI * 2;
 
@@ -213,6 +214,25 @@ export class Entity {
 		this.angularVelocity += ((contactPoint.x - this._position.x) * impulse.x - (contactPoint.y - this._position.y) * impulse.x) / this.inertia;
 	}
 
+	public applyForce(forceX: number, forceY: number, point: Vector2 | null = null): void {
+		if (this.isStatic) return;
+		this.positionalVelocity.x += forceX / this._mass;
+		this.positionalVelocity.y += forceY / this._mass;
+		if (point && this.points !== null) {
+			const torque = (point.x - this._position.x) * forceY - (point.y - this._position.y) * forceX;
+			this.angularVelocity += torque / this.inertia;
+		}
+	}
+
+	public isPointInside(pointX: number, pointY: number): boolean {
+		if (this.points === null) {
+			const distanceX = pointX - this._position.x;
+			const distanceY = pointY - this._position.y;
+			return (distanceX * distanceX + distanceY * distanceY) <= (this._radius * this._radius);
+		}
+		return isPointInPolygon(pointX, pointY, this.points);
+	}
+
 	public clone(): Entity {
 		const cloneEntity: Entity = new Entity(this._position.x, this._position.y, this._radius, null);
 		cloneEntity.positionalVelocity.x = this.positionalVelocity.x;
@@ -235,13 +255,16 @@ export class Entity {
 	}
 
 	public update(): void {
-		if (Math.abs(this.positionalVelocity.x) > 1e-9) {
+		if (Math.abs(this.positionalVelocity.x) > 1e-3) {
+			this.positionalVelocity.x *= 0.8;
 			this.positionX += this.positionalVelocity.x;
 		}
-		if (Math.abs(this.positionalVelocity.y) > 1e-9) {
+		if (Math.abs(this.positionalVelocity.y) > 1e-3) {
+			this.positionalVelocity.y *= 0.8;
 			this.positionY += this.positionalVelocity.y;
 		}
-		if (Math.abs(this.angularVelocity) > 1e-9) {
+		if (Math.abs(this.angularVelocity) > 1e-5) {
+			this.angularVelocity *= 0.8;
 			this.angle += this.angularVelocity;
 		}
 	}

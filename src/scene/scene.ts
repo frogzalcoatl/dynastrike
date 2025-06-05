@@ -1,5 +1,5 @@
 import { Entity } from "../entity/entity";
-import { Box, boxesIntersect } from "../geometry/box";
+import { Box } from "../geometry/box";
 import { Collision } from "../physics/collision";
 import { QuadTree } from "../physics/quadtree";
 
@@ -22,7 +22,7 @@ export class Scene {
 	public box: Box;
 	constructor(box: Box) {
 		this.entities = [];
-		this.quadTree = new QuadTree(box, 7);
+		this.quadTree = new QuadTree(box, 8);
 		this.box = box;
 	}
 
@@ -42,8 +42,21 @@ export class Scene {
 		return true;
 	}
 
-	public destroy() {
-
+	private earthlyShackles(entity: Entity): void {
+		if (entity.positionX < this.box.minX) {
+			entity.positionX = this.box.minX;
+			entity.positionalVelocity.x = 0;
+		} else if (entity.positionX > this.box.maxX) {
+			entity.positionX = this.box.maxX;
+			entity.positionalVelocity.x = 0;
+		}
+		if (entity.positionY < this.box.minY) {
+			entity.positionY = this.box.minY;
+			entity.positionalVelocity.y = 0;
+		} else if (entity.positionY > this.box.maxY) {
+			entity.positionY = this.box.maxY;
+			entity.positionalVelocity.y = 0;
+		}
 	}
 
 	public update(): void {
@@ -56,18 +69,14 @@ export class Scene {
 			const potentialColliders: Set<Entity> = this.quadTree.query(instance.box);
 			this.quadTree.insert(instance);
 			for (const other of potentialColliders) {
-				if (instance.index === other.index) {
-					continue;
-				}
 				const pairIndex: number = getPairIndex(instance.index, other.index);
 				if (processedCollisions.has(pairIndex)) {
 					continue;
 				}
 				processedCollisions.add(pairIndex);
-				if (boxesIntersect(instance.box, other.box)) {
-					Collision.collide(instance, other);
-				}
+				Collision.collide(instance, other);
 			}
+			this.earthlyShackles(instance);
 		}
 	}
 }
