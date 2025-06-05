@@ -324,7 +324,7 @@ export class Collision {
 		if (denominator < 1e-9) {
 			return;
 		}
-		const impulseMagnitude = -velocityAlongNormal / denominator;
+		const impulseMagnitude = -2 * velocityAlongNormal / denominator;
 		const impulseX = impulseMagnitude * bestNormalX;
 		const impulseY = impulseMagnitude * bestNormalY;
 		if (!instance.isStatic) {
