@@ -1,18 +1,33 @@
 import { Entity } from "../entity/entity";
-import { computePenetrationAndNormal, computeSATConvex, ContactResult, findContactPoint, isPointInPolygon, Projection, projectPointOnEdge, Triangle, triangulate } from "./utilities";
+import { Vector2 } from "../geometry/vector";
+import {
+	computePenetrationAndNormal,
+	computeSATConvex,
+	ContactResult,
+	findContactPoint,
+	isPointInPolygon,
+	Projection,
+	projectPointOnEdge,
+	Triangle,
+	triangulate
+} from "./utilities";
 
 export class Collision {
 	public static collideCircleCircle(instance: Entity, other: Entity): void {
+		if (instance.isStatic && other.isStatic) {
+			return;
+		}
 		const distanceX: number = other.positionX - instance.positionX;
 		const distanceY: number = other.positionY - instance.positionY;
 		const distanceSquared: number = distanceX * distanceX + distanceY * distanceY;
 		const minimumDistance: number = instance.radius + other.radius;
-		if (distanceSquared >= minimumDistance * minimumDistance || (instance.isStatic && other.isStatic)) {
+		const minimumDistanceSquared: number = minimumDistance * minimumDistance;
+		if (distanceSquared >= minimumDistanceSquared || (instance.isStatic && other.isStatic)) {
 			return;
 		}
 		const distance: number = Math.sqrt(distanceSquared);
-		let normalX: number = 0;
-		let normalY: number = 0;
+		let normalX: number;
+		let normalY: number;
 		if (distance < 1e-9) {
 			normalX = 0;
 			normalY = 1;
@@ -29,45 +44,64 @@ export class Collision {
 		} else if (other.isStatic) {
 			instance.moveBy(-overlapCorrectionX, -overlapCorrectionY);
 		} else {
-			const totalMass: number = instance.mass + other.mass;
-			const inverseTotalMass: number = 1 / totalMass;
+			const inverseTotalMass: number = 1 / (instance.mass + other.mass);
 			const instanceCorrectionFraction: number = other.mass * inverseTotalMass;
 			const otherCorrectionFraction: number = instance.mass * inverseTotalMass;
 			instance.moveBy(-overlapCorrectionX * instanceCorrectionFraction, -overlapCorrectionY * instanceCorrectionFraction);
 			other.moveBy(overlapCorrectionX * otherCorrectionFraction, overlapCorrectionY * otherCorrectionFraction);
 		}
-		const relativeVelocityX: number = other.positionalVelocity.x - instance.positionalVelocity.x;
-		const relativeVelocityY: number = other.positionalVelocity.y - instance.positionalVelocity.y;
-		const velocityAlongNormal: number = relativeVelocityX * normalX + relativeVelocityY * normalY;
+		const velocityAlongNormal: number = (other.positionalVelocity.x - instance.positionalVelocity.x) * normalX + (other.positionalVelocity.y - instance.positionalVelocity.y) * normalY;
 		if (velocityAlongNormal > 0) {
 			return;
 		}
 		const instanceInverseMass: number = instance.isStatic ? 0 : 1 / instance.mass;
 		const otherInverseMass: number = other.isStatic ? 0 : 1 / other.mass;
 		const sumInverseMass: number = instanceInverseMass + otherInverseMass;
-		const impulseMagnitude: number = -2 * velocityAlongNormal / sumInverseMass;
+		if (sumInverseMass < 1e-9) {
+			return;
+		}
+		const instanceInverseInertia: number = instance.isStatic || instance.inertia <= 1e-9 ? 0 : 1 / instance.inertia;
+		const otherInverseInertia: number = other.isStatic || other.inertia <= 1e-9 ? 0 : 1 / other.inertia;
+		const impulseMagnitude: number = -(1 + Math.min(instance.restitution, other.restitution)) * velocityAlongNormal / sumInverseMass;
 		const impulseX: number = impulseMagnitude * normalX;
 		const impulseY: number = impulseMagnitude * normalY;
-		if (!instance.isStatic) {
-			instance.positionalVelocity.x -= impulseX * instanceInverseMass;
-			instance.positionalVelocity.y -= impulseY * instanceInverseMass;
+		instance.positionalVelocity.x -= impulseX * instanceInverseMass;
+		instance.positionalVelocity.y -= impulseY * instanceInverseMass;
+		other.positionalVelocity.x += impulseX * otherInverseMass;
+		other.positionalVelocity.y += impulseY * otherInverseMass;
+		const tangentX: number = -normalY;
+		const tangentY: number = normalX;
+		const relativeInstanceX: number = normalX * instance.radius;
+		const relativeInstanceY: number = normalY * instance.radius;
+		const relativeOtherX: number = -normalX * other.radius;
+		const relativeOtherY: number = -normalY * other.radius;
+		const frictionDenominator: number = sumInverseMass + (relativeInstanceX * tangentY - relativeInstanceY * tangentX) * (relativeInstanceX * tangentY - relativeInstanceY * tangentX) * instanceInverseInertia + (relativeOtherX * tangentY - relativeOtherY * tangentX) * (relativeOtherX * tangentY - relativeOtherY * tangentX) * otherInverseInertia;
+		if (frictionDenominator < 1e-9) {
+			return;
 		}
-		if (!other.isStatic) {
-			other.positionalVelocity.x += impulseX * otherInverseMass;
-			other.positionalVelocity.y += impulseY * otherInverseMass;
+		let frictionMagnitude = -((other.positionalVelocity.x - other.angularVelocity * relativeOtherY - instance.positionalVelocity.x - instance.angularVelocity * relativeInstanceY) * tangentX + (other.positionalVelocity.y + other.angularVelocity * relativeOtherX - instance.positionalVelocity.y + instance.angularVelocity * relativeInstanceX) * tangentY) / frictionDenominator;
+		const maxFriction = Math.sqrt(instance.frictionCoefficient * other.frictionCoefficient) * Math.abs(impulseMagnitude);
+		if (frictionMagnitude > maxFriction) {
+			frictionMagnitude = maxFriction;
+		} else if (frictionMagnitude < -maxFriction) {
+			frictionMagnitude = -maxFriction;
 		}
+		const frictionX: number = frictionMagnitude * tangentX;
+		const frictionY: number = frictionMagnitude * tangentY;
+		instance.positionalVelocity.x -= frictionX * instanceInverseMass;
+		instance.positionalVelocity.y -= frictionY * instanceInverseMass;
+		other.positionalVelocity.x += frictionX * otherInverseMass;
+		other.positionalVelocity.y += frictionY * otherInverseMass;
+		instance.angularVelocity -= (relativeInstanceX * frictionY - relativeInstanceY * frictionX) * instanceInverseInertia;
+		other.angularVelocity += (relativeOtherX * frictionY - relativeOtherY * frictionX) * otherInverseInertia;
 	}
 
 	public static collidePolygonCircle(polygonEntity: Entity, circleEntity: Entity): void {
-		const points = polygonEntity.points!;
-		if (points === null || (polygonEntity.isStatic && circleEntity.isStatic)) {
+		if (polygonEntity.points === null || (polygonEntity.isStatic && circleEntity.isStatic)) {
 			return;
 		}
-		const circleX: number = circleEntity.positionX;
-		const circleY: number = circleEntity.positionY;
-		const circleRadius: number = circleEntity.radius;
-		const circleRadiusSquared: number = circleRadius * circleRadius;
-		const isInside: boolean = isPointInPolygon(circleX, circleY, points);
+		const circleRadiusSquared: number = circleEntity.radius * circleEntity.radius;
+		const isInside: boolean = isPointInPolygon(circleEntity.positionX, circleEntity.positionY, polygonEntity.points);
 		let sumPenetration: number = 0;
 		let accumulatedNormalXTimesPenetration: number = 0;
 		let accumulatedNormalYTimesPenetration: number = 0;
@@ -77,14 +111,14 @@ export class Collision {
 		let minimumDistanceSqForInside: number = Infinity;
 		let featureXForInsideNormal: number = 0;
 		let featureYForInsideNormal: number = 0;
-		const pointCount: number = points.length;
-		let previousVertexX: number = points[pointCount - 2];
-		let previousVertexY: number = points[pointCount - 1];
-		for (let i: number = 0; i < pointCount; i += 2) {
-			const currentVertexX: number = points[i];
-			const currentVertexY: number = points[i + 1];
-			const projection: Projection = projectPointOnEdge(circleX, circleY, previousVertexX, previousVertexY, currentVertexX, currentVertexY);
-			const edgeContact: ContactResult = computePenetrationAndNormal(circleX, circleY, projection.x, projection.y, circleRadius, polygonEntity.positionX, polygonEntity.positionY, isInside, projection.distanceSquared, circleRadiusSquared);
+		const pointCount: number = polygonEntity.points.length;
+		let previousVertexX: number = polygonEntity.points[pointCount - 2];
+		let previousVertexY: number = polygonEntity.points[pointCount - 1];
+		for (let i = 0; i < pointCount; i += 2) {
+			const currentVertexX: number = polygonEntity.points[i];
+			const currentVertexY: number = polygonEntity.points[i + 1];
+			const projection: Projection = projectPointOnEdge(circleEntity.positionX, circleEntity.positionY, previousVertexX, previousVertexY, currentVertexX, currentVertexY);
+			const edgeContact: ContactResult = computePenetrationAndNormal(circleEntity.positionX, circleEntity.positionY, projection.x, projection.y, circleEntity.radius, polygonEntity.positionX, polygonEntity.positionY, isInside, projection.distanceSquared, circleRadiusSquared);
 			if (edgeContact.penetration > 0) {
 				sumPenetration += edgeContact.penetration;
 				accumulatedNormalXTimesPenetration += edgeContact.normalX * edgeContact.penetration;
@@ -93,17 +127,15 @@ export class Collision {
 				accumulatedContactYTimesPenetration += projection.y * edgeContact.penetration;
 				contactCount++;
 			}
-			if (isInside) {
-				if (projection.distanceSquared < minimumDistanceSqForInside) {
-					minimumDistanceSqForInside = projection.distanceSquared;
-					featureXForInsideNormal = projection.x;
-					featureYForInsideNormal = projection.y;
-				}
+			if (isInside && projection.distanceSquared < minimumDistanceSqForInside) {
+				minimumDistanceSqForInside = projection.distanceSquared;
+				featureXForInsideNormal = projection.x;
+				featureYForInsideNormal = projection.y;
 			}
-			const distVertexCircleX: number = circleX - currentVertexX;
-			const distVertexCircleY: number = circleY - currentVertexY;
+			const distVertexCircleX: number = circleEntity.positionX - currentVertexX;
+			const distVertexCircleY: number = circleEntity.positionY - currentVertexY;
 			const vertexDistanceSquared: number = distVertexCircleX * distVertexCircleX + distVertexCircleY * distVertexCircleY;
-			const vertexContact: ContactResult = computePenetrationAndNormal(circleX, circleY, currentVertexX, currentVertexY, circleRadius, polygonEntity.positionX, polygonEntity.positionY, isInside, vertexDistanceSquared, circleRadiusSquared);
+			const vertexContact: ContactResult = computePenetrationAndNormal(circleEntity.positionX, circleEntity.positionY, currentVertexX, currentVertexY, circleEntity.radius, polygonEntity.positionX, polygonEntity.positionY, isInside, vertexDistanceSquared, circleRadiusSquared);
 			if (vertexContact.penetration > 0) {
 				sumPenetration += vertexContact.penetration;
 				accumulatedNormalXTimesPenetration += vertexContact.normalX * vertexContact.penetration;
@@ -112,53 +144,44 @@ export class Collision {
 				accumulatedContactYTimesPenetration += currentVertexY * vertexContact.penetration;
 				contactCount++;
 			}
-			if (isInside) {
-				if (vertexDistanceSquared < minimumDistanceSqForInside) {
-					minimumDistanceSqForInside = vertexDistanceSquared;
-					featureXForInsideNormal = currentVertexX;
-					featureYForInsideNormal = currentVertexY;
-				}
+			if (isInside && vertexDistanceSquared < minimumDistanceSqForInside) {
+				minimumDistanceSqForInside = vertexDistanceSquared;
+				featureXForInsideNormal = currentVertexX;
+				featureYForInsideNormal = currentVertexY;
 			}
 			previousVertexX = currentVertexX;
 			previousVertexY = currentVertexY;
 		}
 		if (contactCount === 0) {
-			if (isInside) {
-				if (minimumDistanceSqForInside === Infinity) {
-					return;
-				}
-				const rawNormalToFeatureX: number = featureXForInsideNormal - circleX;
-				const rawNormalToFeatureY: number = featureYForInsideNormal - circleY;
-				const distanceToBoundary: number = Math.sqrt(minimumDistanceSqForInside);
-				let bestNormalX: number = 0;
-				let bestNormalY: number = 0;
-				if (distanceToBoundary < 1e-9) {
-					bestNormalX = 0;
-					bestNormalY = 1;
-				} else {
-					const inverseDistance: number = 1 / distanceToBoundary;
-					bestNormalX = rawNormalToFeatureX * inverseDistance;
-					bestNormalY = rawNormalToFeatureY * inverseDistance;
-				}
-				const penetration: number = circleRadius + distanceToBoundary;
-				const correctionX: number = bestNormalX * penetration;
-				const correctionY: number = bestNormalY * penetration;
-				if (polygonEntity.isStatic) {
-					circleEntity.moveBy(correctionX, correctionY);
-				} else if (circleEntity.isStatic) {
-					polygonEntity.moveBy(-correctionX, -correctionY);
-				} else {
-					const totalMass: number = polygonEntity.mass + circleEntity.mass;
-					const inverseTotalMass: number = 1 / totalMass;
-					const polygonCorrectionFactor: number = circleEntity.mass * inverseTotalMass;
-					const circleCorrectionFactor: number = polygonEntity.mass * inverseTotalMass;
-					polygonEntity.moveBy(-correctionX * polygonCorrectionFactor, -correctionY * polygonCorrectionFactor);
-					circleEntity.moveBy(correctionX * circleCorrectionFactor, correctionY * circleCorrectionFactor);
-				}
-				return;
-			} else {
+			if (!isInside || minimumDistanceSqForInside === Infinity) {
 				return;
 			}
+			const distanceToBoundary: number = Math.sqrt(minimumDistanceSqForInside);
+			let bestNormalX: number;
+			let bestNormalY: number;
+			if (distanceToBoundary < 1e-9) {
+				bestNormalX = 0;
+				bestNormalY = 1;
+			} else {
+				const inverseDistance: number = 1 / distanceToBoundary;
+				bestNormalX = (featureXForInsideNormal - circleEntity.positionX) * inverseDistance;
+				bestNormalY = (featureYForInsideNormal - circleEntity.positionY) * inverseDistance;
+			}
+			const penetration: number = circleEntity.radius + distanceToBoundary;
+			const correctionX: number = bestNormalX * penetration;
+			const correctionY: number = bestNormalY * penetration;
+			if (polygonEntity.isStatic) {
+				circleEntity.moveBy(correctionX, correctionY);
+			} else if (circleEntity.isStatic) {
+				polygonEntity.moveBy(-correctionX, -correctionY);
+			} else {
+				const invTotalMass: number = 1 / (polygonEntity.mass + circleEntity.mass);
+				const polygonCorrectionFactor: number = circleEntity.mass * invTotalMass;
+				const circleCorrectionFactor: number = polygonEntity.mass * invTotalMass;
+				polygonEntity.moveBy(-correctionX * polygonCorrectionFactor, -correctionY * polygonCorrectionFactor);
+				circleEntity.moveBy(correctionX * circleCorrectionFactor, correctionY * circleCorrectionFactor);
+			}
+			return;
 		}
 		let weightedNormalX: number = 0;
 		let weightedNormalY: number = 0;
@@ -176,78 +199,95 @@ export class Collision {
 			averageContactX = accumulatedContactXTimesPenetration * inverseSumPenetration;
 			averageContactY = accumulatedContactYTimesPenetration * inverseSumPenetration;
 		}
-		const averageNormalLengthSquared: number = weightedNormalX * weightedNormalX + weightedNormalY * weightedNormalY;
+		const averageLengthSquared: number = weightedNormalX * weightedNormalX + weightedNormalY * weightedNormalY;
 		let finalNormalX: number = 0;
 		let finalNormalY: number = 0;
-		if (averageNormalLengthSquared < 1e-18) {
+		if (averageLengthSquared < 1e-18) {
 			finalNormalX = 0;
 			finalNormalY = 1;
 		} else {
-			const inverseLength: number = 1 / Math.sqrt(averageNormalLengthSquared);
+			const inverseLength: number = 1 / Math.sqrt(averageLengthSquared);
 			finalNormalX = weightedNormalX * inverseLength;
 			finalNormalY = weightedNormalY * inverseLength;
 		}
 		const averagePenetration: number = sumPenetration / contactCount;
-		const correctionY: number = finalNormalX * averagePenetration;
-		const correctionX: number = finalNormalY * averagePenetration;
+		const correctionX: number = finalNormalX * averagePenetration;
+		const correctionY: number = finalNormalY * averagePenetration;
+		let polygonFactor: number = 0;
+		let circleFactor: number = 0;
 		if (polygonEntity.isStatic) {
-			circleEntity.moveBy(correctionY, correctionX);
+			polygonFactor = 0;
+			circleFactor = 1;
 		} else if (circleEntity.isStatic) {
-			polygonEntity.moveBy(-correctionY, -correctionX);
+			polygonFactor = 1;
+			circleFactor = 0;
 		} else {
-			const totalMass: number = polygonEntity.mass + circleEntity.mass;
-			const inverseTotalMass: number = 1 / totalMass;
-			const polygonCorrectionFactor: number = circleEntity.mass * inverseTotalMass;
-			const circleCorrectionFactor: number = polygonEntity.mass * inverseTotalMass;
-			polygonEntity.moveBy(-correctionY * polygonCorrectionFactor, -correctionX * polygonCorrectionFactor);
-			circleEntity.moveBy(correctionY * circleCorrectionFactor, correctionX * circleCorrectionFactor);
+			const inverseTotalMass: number = 1 / (polygonEntity.mass + circleEntity.mass);
+			polygonFactor = circleEntity.mass * inverseTotalMass;
+			circleFactor = polygonEntity.mass * inverseTotalMass;
 		}
-		const relativePolygonX: number = averageContactX - polygonEntity.positionX;
-		const relativePolygonY: number = averageContactY - polygonEntity.positionY;
-		const relativeCircleX: number = averageContactX - circleX;
-		const relativeCircleY: number = averageContactY - circleY;
-		const polygonVelocityAtContactX: number = polygonEntity.positionalVelocity.x - polygonEntity.angularVelocity * relativePolygonY;
-		const polygonVelocityAtContactY: number = polygonEntity.positionalVelocity.y + polygonEntity.angularVelocity * relativePolygonX;
-		const circleVelocityContactX: number = circleEntity.positionalVelocity.x - circleEntity.angularVelocity * relativeCircleY;
-		const circleVelocityContactY: number = circleEntity.positionalVelocity.y + circleEntity.angularVelocity * relativeCircleX;
-		const relativeVelocityX: number = circleVelocityContactX - polygonVelocityAtContactX;
-		const relativeVelocityY: number = circleVelocityContactY - polygonVelocityAtContactY;
-		const velocityAlongNormal: number = relativeVelocityX * finalNormalX + relativeVelocityY * finalNormalY;
+		polygonEntity.moveBy(-correctionX * polygonFactor, -correctionY * polygonFactor);
+		circleEntity.moveBy(correctionX * circleFactor, correctionY * circleFactor);
+		const polygonRelativeX: number = averageContactX - polygonEntity.positionX;
+		const polygonRelativeY: number = averageContactY - polygonEntity.positionY;
+		const circleRelativeX: number = averageContactX - circleEntity.positionX;
+		const circleRelativeY: number = averageContactY - circleEntity.positionY;
+		const deltaVelocityX = circleEntity.positionalVelocity.x - circleEntity.angularVelocity * circleRelativeY - polygonEntity.positionalVelocity.x + polygonEntity.angularVelocity * polygonRelativeY;
+		const deltaVelocityY = circleEntity.positionalVelocity.y + circleEntity.angularVelocity * circleRelativeX - polygonEntity.positionalVelocity.y - polygonEntity.angularVelocity * polygonRelativeX;
+		const velocityAlongNormal: number = deltaVelocityX * finalNormalX + deltaVelocityY * finalNormalY;
 		if (velocityAlongNormal > 0) {
 			return;
 		}
-		const inversePolygonMass: number = polygonEntity.isStatic ? 0 : 1 / polygonEntity.mass;
-		const inverseCircleMass: number = circleEntity.isStatic ? 0 : 1 / circleEntity.mass;
+		let inversePolygonMass: number = 0;
 		let inversePolygonInertia: number = 0;
-		if (!polygonEntity.isStatic && polygonEntity.inertia > 1e-9) {
+		if (!polygonEntity.isStatic) {
+			inversePolygonMass = 1 / polygonEntity.mass;
 			inversePolygonInertia = 1 / polygonEntity.inertia;
 		}
+		let inverseCircleMass: number = 0;
 		let inverseCircleInertia: number = 0;
-		if (!circleEntity.isStatic && circleEntity.inertia > 1e-9) {
+		if (!circleEntity.isStatic) {
+			inverseCircleMass = 1 / circleEntity.mass;
 			inverseCircleInertia = 1 / circleEntity.inertia;
 		}
-		const relativePolygonCrossNormal: number = relativePolygonX * finalNormalY - relativePolygonY * finalNormalX;
-		const polygonRotationTerm: number = relativePolygonCrossNormal * relativePolygonCrossNormal * inversePolygonInertia;
-		const relativeCircleCrossNormal: number = relativeCircleX * finalNormalY - relativeCircleY * finalNormalX;
-		const circleRotationTerm: number = relativeCircleCrossNormal * relativeCircleCrossNormal * inverseCircleInertia;
-		const denominator: number = inversePolygonMass + inverseCircleMass + polygonRotationTerm + circleRotationTerm;
+		const polygonCrossNormal: number = polygonRelativeX * finalNormalY - polygonRelativeY * finalNormalX;
+		const circleCrossNormal: number = circleRelativeX * finalNormalY - circleRelativeY * finalNormalX;
+		const denominator: number = inversePolygonMass + inverseCircleMass + polygonCrossNormal * polygonCrossNormal * inversePolygonInertia + circleCrossNormal * circleCrossNormal * inverseCircleInertia;
 		if (denominator < 1e-9) {
 			return;
 		}
-		const impulseMagnitude: number = (-2.0 * velocityAlongNormal) / denominator;
+		const impulseMagnitude: number = (-(1 + Math.min(polygonEntity.restitution, circleEntity.restitution)) * velocityAlongNormal) / denominator;
 		const impulseX: number = impulseMagnitude * finalNormalX;
 		const impulseY: number = impulseMagnitude * finalNormalY;
-		if (!polygonEntity.isStatic) {
-			polygonEntity.positionalVelocity.x -= impulseX * inversePolygonMass;
-			polygonEntity.positionalVelocity.y -= impulseY * inversePolygonMass;
-			polygonEntity.angularVelocity -= (relativePolygonX * impulseY - relativePolygonY * impulseX) * inversePolygonInertia;
+		polygonEntity.positionalVelocity.x -= impulseX * inversePolygonMass;
+		polygonEntity.positionalVelocity.y -= impulseY * inversePolygonMass;
+		polygonEntity.angularVelocity -= (polygonRelativeX * impulseY - polygonRelativeY * impulseX) * inversePolygonInertia;
+		circleEntity.positionalVelocity.x += impulseX * inverseCircleMass;
+		circleEntity.positionalVelocity.y += impulseY * inverseCircleMass;
+		circleEntity.angularVelocity += (circleRelativeX * impulseY - circleRelativeY * impulseX) * inverseCircleInertia;
+		const tangentX: number = -finalNormalY;
+		const tangentY: number = finalNormalX;
+		const polygonCrossTangent: number = polygonRelativeX * tangentY - polygonRelativeY * tangentX;
+		const circleCrossTangent: number = circleRelativeX * tangentY - circleRelativeY * tangentX;
+		const frictionDenom: number = inversePolygonMass + inverseCircleMass + polygonCrossTangent * polygonCrossTangent * inversePolygonInertia + circleCrossTangent * circleCrossTangent * inverseCircleInertia;
+		if (frictionDenom < 1e-9) {
+			return;
 		}
-
-		if (!circleEntity.isStatic) {
-			circleEntity.positionalVelocity.x += impulseX * inverseCircleMass;
-			circleEntity.positionalVelocity.y += impulseY * inverseCircleMass;
-			circleEntity.angularVelocity += (relativeCircleX * impulseY - relativeCircleY * impulseX) * inverseCircleInertia;
+		let frictionMagnitude: number = -(deltaVelocityX * tangentX + deltaVelocityY * tangentY) / frictionDenom;
+		const maxFriction: number = Math.sqrt(polygonEntity.frictionCoefficient * circleEntity.frictionCoefficient) * Math.abs(impulseMagnitude);
+		if (frictionMagnitude > maxFriction) {
+			frictionMagnitude = maxFriction;
+		} else if (frictionMagnitude < -maxFriction) {
+			frictionMagnitude = -maxFriction;
 		}
+		const frictionX: number = frictionMagnitude * tangentX;
+		const frictionY: number = frictionMagnitude * tangentY;
+		polygonEntity.positionalVelocity.x -= frictionX * inversePolygonMass;
+		polygonEntity.positionalVelocity.y -= frictionY * inversePolygonMass;
+		polygonEntity.angularVelocity -= (polygonRelativeX * frictionY - polygonRelativeY * frictionX) * inversePolygonInertia;
+		circleEntity.positionalVelocity.x += frictionX * inverseCircleMass;
+		circleEntity.positionalVelocity.y += frictionY * inverseCircleMass;
+		circleEntity.angularVelocity += (circleRelativeX * frictionY - circleRelativeY * frictionX) * inverseCircleInertia;
 	}
 
 	public static collidePolygonPolygon(instance: Entity, other: Entity): void {
@@ -271,7 +311,7 @@ export class Collision {
 					bestPenetration = satResult.penetration;
 					bestNormalX = satResult.normalX;
 					bestNormalY = satResult.normalY;
-					const contact = findContactPoint(instanceTriangle, otherTriangle);
+					const contact: Vector2 = findContactPoint(instanceTriangle, otherTriangle);
 					bestContactX = contact.x;
 					bestContactY = contact.y;
 					collisionFound = true;
@@ -281,67 +321,85 @@ export class Collision {
 		if (!collisionFound) {
 			return;
 		}
-		const correctionX = bestNormalX * bestPenetration;
-		const correctionY = bestNormalY * bestPenetration;
-		if (instance.isStatic) {
+		const correctionX: number = bestNormalX * bestPenetration;
+		const correctionY: number = bestNormalY * bestPenetration;
+		const instanceIsStatic: boolean = instance.isStatic;
+		const otherIsStatic: boolean = other.isStatic;
+		if (instanceIsStatic) {
 			other.moveBy(correctionX, correctionY);
-		} else if (other.isStatic) {
+		} else if (otherIsStatic) {
 			instance.moveBy(-correctionX, -correctionY);
 		} else {
-			const totalMass = instance.mass + other.mass;
-			const instanceFraction = other.mass / totalMass;
-			const otherFraction = instance.mass / totalMass;
+			const totalMass: number = instance.mass + other.mass;
+			const instanceFraction: number = other.mass / totalMass;
+			const otherFraction: number = instance.mass / totalMass;
 			instance.moveBy(-correctionX * instanceFraction, -correctionY * instanceFraction);
 			other.moveBy(correctionX * otherFraction, correctionY * otherFraction);
 		}
-		const relatveInstanceX = bestContactX - instance.positionX;
-		const relativeInstanceY = bestContactY - instance.positionY;
-		const relativeOtherX = bestContactX - other.positionX;
-		const relativeOtherY = bestContactY - other.positionY;
-		const instanceVelocityX = instance.positionalVelocity.x - instance.angularVelocity * relativeInstanceY;
-		const instanceVelocityY = instance.positionalVelocity.y + instance.angularVelocity * relatveInstanceX;
-		const otherVelocityX = other.positionalVelocity.x - other.angularVelocity * relativeOtherY;
-		const otherVelocityY = other.positionalVelocity.y + other.angularVelocity * relativeOtherX;
-		const relativeVelocityX = otherVelocityX - instanceVelocityX;
-		const relativeVelocityY = otherVelocityY - instanceVelocityY;
-		const velocityAlongNormal = relativeVelocityX * bestNormalX + relativeVelocityY * bestNormalY;
+		const relativeInstanceX: number = bestContactX - instance.positionX;
+		const relativeInstanceY: number = bestContactY - instance.positionY;
+		const relativeOtherX: number = bestContactX - other.positionX;
+		const relativeOtherY: number = bestContactY - other.positionY;
+		const instanceVelocityX: number = instance.positionalVelocity.x - instance.angularVelocity * relativeInstanceY;
+		const instanceVelocityY: number = instance.positionalVelocity.y + instance.angularVelocity * relativeInstanceX;
+		const otherVelocityX: number = other.positionalVelocity.x - other.angularVelocity * relativeOtherY;
+		const otherVelocityY: number = other.positionalVelocity.y + other.angularVelocity * relativeOtherX;
+		const relativeVelocityX: number = otherVelocityX - instanceVelocityX;
+		const relativeVelocityY: number = otherVelocityY - instanceVelocityY;
+		const velocityAlongNormal: number = relativeVelocityX * bestNormalX + relativeVelocityY * bestNormalY;
 		if (velocityAlongNormal > 0) {
 			return;
 		}
-		const inverseInstanceMass = instance.isStatic ? 0 : 1 / instance.mass;
-		const inverseOtherMass = other.isStatic ? 0 : 1 / other.mass;
-		let inverseInstanceInertia = 0;
-		if (!instance.isStatic && instance.inertia > 1e-9) {
-			inverseInstanceInertia = 1 / instance.inertia;
-		}
-		let inverseOtherInertia = 0;
-		if (!other.isStatic && other.inertia > 1e-9) {
-			inverseOtherInertia = 1 / other.inertia;
-		}
-		const instanceCross = relatveInstanceX * bestNormalY - relativeInstanceY * bestNormalX;
-		const otherCross = relativeOtherX * bestNormalY - relativeOtherY * bestNormalX;
-		const denominator = inverseInstanceMass + inverseOtherMass + instanceCross * instanceCross * inverseInstanceInertia + otherCross * otherCross * inverseOtherInertia;
+		const inverseInstanceMass: number = instanceIsStatic ? 0 : 1 / instance.mass;
+		const inverseOtherMass: number = otherIsStatic ? 0 : 1 / other.mass;
+		const inverseInstanceInertia: number = (!instanceIsStatic && instance.inertia > 1e-9) ? 1 / instance.inertia : 0;
+		const inverseOtherInertia: number = (!otherIsStatic && other.inertia > 1e-9) ? 1 / other.inertia : 0;
+		const instanceCross: number = relativeInstanceX * bestNormalY - relativeInstanceY * bestNormalX;
+		const otherCross: number = relativeOtherX * bestNormalY - relativeOtherY * bestNormalX;
+		const denominator: number = inverseInstanceMass + inverseOtherMass + instanceCross * instanceCross * inverseInstanceInertia + otherCross * otherCross * inverseOtherInertia;
 		if (denominator < 1e-9) {
 			return;
 		}
-		const impulseMagnitude = -2 * velocityAlongNormal / denominator;
-		const impulseX = impulseMagnitude * bestNormalX;
-		const impulseY = impulseMagnitude * bestNormalY;
-		if (!instance.isStatic) {
+		const impulseMagnitude: number = -(1 + Math.min(instance.restitution, other.restitution)) * velocityAlongNormal / denominator;
+		const impulseX: number = impulseMagnitude * bestNormalX;
+		const impulseY: number = impulseMagnitude * bestNormalY;
+		if (!instanceIsStatic) {
 			instance.positionalVelocity.x -= impulseX * inverseInstanceMass;
 			instance.positionalVelocity.y -= impulseY * inverseInstanceMass;
+			instance.angularVelocity -= (relativeInstanceX * impulseY - relativeInstanceY * impulseX) * inverseInstanceInertia;
 		}
-		if (!other.isStatic) {
+		if (!otherIsStatic) {
 			other.positionalVelocity.x += impulseX * inverseOtherMass;
 			other.positionalVelocity.y += impulseY * inverseOtherMass;
+			other.angularVelocity += (relativeOtherX * impulseY - relativeOtherY * impulseX) * inverseOtherInertia;
 		}
-		if (!instance.isStatic) {
-			const crossImpulse = relatveInstanceX * impulseY - relativeInstanceY * impulseX;
-			instance.angularVelocity -= crossImpulse * inverseInstanceInertia;
+		const tangentX: number = -bestNormalY;
+		const tangentY: number = bestNormalX;
+		const relVelTangent: number = relativeVelocityX * tangentX + relativeVelocityY * tangentY;
+		const instanceCrossTangent: number = relativeInstanceX * tangentY - relativeInstanceY * tangentX;
+		const otherCrossTangent: number = relativeOtherX * tangentY - relativeOtherY * tangentX;
+		const frictionDenominator: number = inverseInstanceMass + inverseOtherMass + instanceCrossTangent * instanceCrossTangent * inverseInstanceInertia + otherCrossTangent * otherCrossTangent * inverseOtherInertia;
+		if (frictionDenominator < 1e-9) {
+			return;
 		}
-		if (!other.isStatic) {
-			const crossImpulse = relativeOtherX * impulseY - relativeOtherY * impulseX;
-			other.angularVelocity += crossImpulse * inverseOtherInertia;
+		let frictionMagnitude: number = -relVelTangent / frictionDenominator;
+		const maxFriction: number = Math.sqrt(instance.frictionCoefficient * other.frictionCoefficient) * Math.abs(impulseMagnitude);
+		if (frictionMagnitude > maxFriction) {
+			frictionMagnitude = maxFriction;
+		} else if (frictionMagnitude < -maxFriction) {
+			frictionMagnitude = -maxFriction;
+		}
+		const frictionX: number = frictionMagnitude * tangentX;
+		const frictionY: number = frictionMagnitude * tangentY;
+		if (!instanceIsStatic) {
+			instance.positionalVelocity.x -= frictionX * inverseInstanceMass;
+			instance.positionalVelocity.y -= frictionY * inverseInstanceMass;
+			instance.angularVelocity -= (relativeInstanceX * frictionY - relativeInstanceY * frictionX) * inverseInstanceInertia;
+		}
+		if (!otherIsStatic) {
+			other.positionalVelocity.x += frictionX * inverseOtherMass;
+			other.positionalVelocity.y += frictionY * inverseOtherMass;
+			other.angularVelocity += (relativeOtherX * frictionY - relativeOtherY * frictionX) * inverseOtherInertia;
 		}
 	}
 

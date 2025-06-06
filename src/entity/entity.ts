@@ -6,7 +6,7 @@ import { isPointInPolygon } from "../physics/utilities";
 const TAU: number = Math.PI * 2;
 
 export class Entity {
-	private static entityIndexTicker: number = 0;
+	private static entityIndexTicker: number = 1;
 	private _position: Vector2 = { x: 0, y: 0 };
 	public positionalVelocity: Vector2 = { x: 0, y: 0 };
 	private _angle: number = 0;
@@ -18,7 +18,11 @@ export class Entity {
 	public isStatic: boolean = false;
 	public box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 	public points: number[] | null = null;
-	public readonly index: number = ++Entity.entityIndexTicker;
+	public frictionCoefficient: number = 0;
+	public restitution: number = 1;
+	public linearDampingFactor: number = 0.9;
+	public angularDampeningFactor: number = 0.9;
+	public readonly index: number = Entity.entityIndexTicker++;
 	public constructor(positionX: number, positionY: number, radius: number, points: number[] | null = null) {
 		this._position.x = positionX;
 		this._position.y = positionY;
@@ -207,7 +211,7 @@ export class Entity {
 
 	private applyImpulse(impulse: Vector2, contactPoint: Vector2 | null = null): void {
 		this.positionalVelocity.x += impulse.x / this._mass;
-		this.positionalVelocity.y += impulse.x / this._mass;
+		this.positionalVelocity.y += impulse.y / this._mass;
 		if (contactPoint === null || this.points === null) {
 			return;
 		}
@@ -256,15 +260,15 @@ export class Entity {
 
 	public update(): void {
 		if (Math.abs(this.positionalVelocity.x) > 1e-3) {
-			this.positionalVelocity.x *= 0.8;
+			this.positionalVelocity.x *= this.linearDampingFactor;
 			this.positionX += this.positionalVelocity.x;
 		}
 		if (Math.abs(this.positionalVelocity.y) > 1e-3) {
-			this.positionalVelocity.y *= 0.8;
+			this.positionalVelocity.y *= this.linearDampingFactor;
 			this.positionY += this.positionalVelocity.y;
 		}
 		if (Math.abs(this.angularVelocity) > 1e-5) {
-			this.angularVelocity *= 0.8;
+			this.angularVelocity *= this.angularDampeningFactor;
 			this.angle += this.angularVelocity;
 		}
 	}

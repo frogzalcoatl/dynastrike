@@ -43,8 +43,8 @@
 			entity.angle = Math.PI / 4;
 			scene.addEntity(entity);
 		}
-		const playerEntity = new Dynastrike.Entity(0, 0, 500, Dynastrike.generatePolygon(0, 0, 1, 3));
-		playerEntity.isStatic = true;
+		let playerEntity = new Dynastrike.Entity(0, 0, 100, Dynastrike.generatePolygon(0, 0, 1, 3));
+		playerEntity.isStatic = false;
 		scene.addEntity(playerEntity);
 		for (let i = 0; i < 100; i++) {
 			const angle = Math.random() * Math.PI * 2;
@@ -82,16 +82,16 @@
 		});
 		function playerInput() {
 			if (commands & 1) {
-				playerEntity.positionalVelocity.y -= 1;
+				playerEntity.positionalVelocity.y -= 0.1;
 			}
 			if (commands & 2) {
-				playerEntity.positionalVelocity.y += 1;
+				playerEntity.positionalVelocity.y += 0.1;
 			}
 			if (commands & 4) {
-				playerEntity.positionalVelocity.x -= 1;
+				playerEntity.positionalVelocity.x -= 0.1;
 			}
 			if (commands & 8) {
-				playerEntity.positionalVelocity.x += 1;
+				playerEntity.positionalVelocity.x += 0.1;
 			}
 		}
 		let cameraX = 0;
@@ -119,7 +119,7 @@
 				}
 			}
 			if (closestEntity) {
-				draggingEntity = closestEntity;
+				playerEntity = closestEntity;
 			}
 		});
 		canvasElement.addEventListener("mousemove", function (event) {
@@ -213,6 +213,13 @@
 				}
 				ctx.closePath();
 				ctx.fill();
+				ctx.strokeStyle = "#000000";
+				ctx.lineWidth = 0;
+				ctx.beginPath();
+				ctx.moveTo(entity.positionX, entity.positionY);
+				ctx.lineTo(entity.positionX + Math.cos(entity.angle) * entity.radius, entity.positionY + Math.sin(entity.angle) * entity.radius);
+				ctx.closePath();
+				ctx.stroke();
 			}
 		}
 		function animationFrame() {
