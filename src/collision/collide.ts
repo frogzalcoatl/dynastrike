@@ -1,8 +1,6 @@
 import { Entity } from "../core/entity";
-import { computePenetrationAndNormal, findContactPoint, projectPointOnEdge } from "../geometry/misc";
-import { isPointInPolygon, triangulate } from "../geometry/polygon";
-import { ContactResult, Projection, Triangle, Vector2 } from "../types";
-import { computeSATConvex } from "./sat";
+import { addPolygonAxes, findClosestPointOnPolygonToCircle, findContactPoints, isPointInPolygon, projectPolygonOntoAxis } from "../geometry/polygon";
+import { ClosestPoint, ContactPoints } from "../types";
 
 export class Collision {
 	private static resolve(instance: Entity, other: Entity, normalX: number, normalY: number, penetration: number, contactX: number, contactY: number): void {
@@ -114,137 +112,85 @@ export class Collision {
 		if (polygonEntity.points === null) {
 			return false;
 		}
-		const circleRadiusSquared: number = circleEntity.radius * circleEntity.radius;
-		const isInside: boolean = isPointInPolygon(circleEntity.positionX, circleEntity.positionY, polygonEntity.points);
-		let sumPenetration: number = 0;
-		let accumulatedNormalXTimesPenetration: number = 0;
-		let accumulatedNormalYTimesPenetration: number = 0;
-		let accumulatedContactXTimesPenetration: number = 0;
-		let accumulatedContactYTimesPenetration: number = 0;
-		let contactCount: number = 0;
-		let minimumDistanceSqForInside: number = Infinity;
-		let featureXForInsideNormal: number = 0;
-		let featureYForInsideNormal: number = 0;
-		const pointCount: number = polygonEntity.points.length;
-		let previousVertexX: number = polygonEntity.points[pointCount - 2];
-		let previousVertexY: number = polygonEntity.points[pointCount - 1];
-		for (let i: number = 0; i < pointCount; i += 2) {
-			const currentVertexX: number = polygonEntity.points[i];
-			const currentVertexY: number = polygonEntity.points[i + 1];
-			const projection: Projection = projectPointOnEdge(circleEntity.positionX, circleEntity.positionY, previousVertexX, previousVertexY, currentVertexX, currentVertexY);
-			const edgeContact: ContactResult = computePenetrationAndNormal(circleEntity.positionX, circleEntity.positionY, projection.x, projection.y, circleEntity.radius, polygonEntity.positionX, polygonEntity.positionY, isInside, projection.distanceSquared, circleRadiusSquared);
-			if (edgeContact.penetration > 0) {
-				sumPenetration += edgeContact.penetration;
-				accumulatedNormalXTimesPenetration += edgeContact.normalX * edgeContact.penetration;
-				accumulatedNormalYTimesPenetration += edgeContact.normalY * edgeContact.penetration;
-				accumulatedContactXTimesPenetration += projection.x * edgeContact.penetration;
-				accumulatedContactYTimesPenetration += projection.y * edgeContact.penetration;
-				contactCount++;
-			}
-			if (isInside && projection.distanceSquared < minimumDistanceSqForInside) {
-				minimumDistanceSqForInside = projection.distanceSquared;
-				featureXForInsideNormal = projection.x;
-				featureYForInsideNormal = projection.y;
-			}
-			const distanceVertexCircleX: number = circleEntity.positionX - currentVertexX;
-			const distanceVertexCircleY: number = circleEntity.positionY - currentVertexY;
-			const vertexDistanceSquared: number = distanceVertexCircleX * distanceVertexCircleX + distanceVertexCircleY * distanceVertexCircleY;
-			const vertexContact: ContactResult = computePenetrationAndNormal(circleEntity.positionX, circleEntity.positionY, currentVertexX, currentVertexY, circleEntity.radius, polygonEntity.positionX, polygonEntity.positionY, isInside, vertexDistanceSquared, circleRadiusSquared);
-			if (vertexContact.penetration > 0) {
-				sumPenetration += vertexContact.penetration;
-				accumulatedNormalXTimesPenetration += vertexContact.normalX * vertexContact.penetration;
-				accumulatedNormalYTimesPenetration += vertexContact.normalY * vertexContact.penetration;
-				accumulatedContactXTimesPenetration += currentVertexX * vertexContact.penetration;
-				accumulatedContactYTimesPenetration += currentVertexY * vertexContact.penetration;
-				contactCount++;
-			}
-			if (isInside && vertexDistanceSquared < minimumDistanceSqForInside) {
-				minimumDistanceSqForInside = vertexDistanceSquared;
-				featureXForInsideNormal = currentVertexX;
-				featureYForInsideNormal = currentVertexY;
-			}
-			previousVertexX = currentVertexX;
-			previousVertexY = currentVertexY;
-		}
-		if (contactCount === 0) {
-			if (!isInside || minimumDistanceSqForInside === Infinity) {
-				return false;
-			}
-			const distanceToBoundary: number = Math.sqrt(minimumDistanceSqForInside);
-			let bestNormalX: number = 0;
-			let bestNormalY: number = 0;
-			if (distanceToBoundary < 1e-9) {
-				bestNormalX = 0;
-				bestNormalY = 1;
+		const closestPoint: ClosestPoint = findClosestPointOnPolygonToCircle(polygonEntity.points, circleEntity.positionX, circleEntity.positionY);
+		if (isPointInPolygon(circleEntity.positionX, circleEntity.positionY, polygonEntity.points)) {
+			const distance: number = Math.sqrt(closestPoint.distanceSquared);
+			let resolutionNormalX: number = 0;
+			let resolutionNormalY: number = 0;
+			if (distance < 1e-9) {
+				resolutionNormalX = 0;
+				resolutionNormalY = 1;
 			} else {
-				const inverseDistance: number = 1 / distanceToBoundary;
-				bestNormalX = (featureXForInsideNormal - circleEntity.positionX) * inverseDistance;
-				bestNormalY = (featureYForInsideNormal - circleEntity.positionY) * inverseDistance;
+				const inverseExactDistance: number = 1 / distance;
+				resolutionNormalX = (closestPoint.x - circleEntity.positionX) * inverseExactDistance;
+				resolutionNormalY = (closestPoint.y - circleEntity.positionY) * inverseExactDistance;
 			}
-			const collisionPenetration: number = circleEntity.radius + distanceToBoundary;
-			this.resolve(polygonEntity, circleEntity, bestNormalX, bestNormalY, collisionPenetration, featureXForInsideNormal, featureYForInsideNormal);
+			const totalPenetrationDistance: number = circleEntity.radius + distance;
+			this.resolve(polygonEntity, circleEntity, resolutionNormalX, resolutionNormalY, totalPenetrationDistance, closestPoint.x, closestPoint.y);
 			return true;
 		}
-		let weightedNormalX: number = 0;
-		let weightedNormalY: number = 0;
-		let averageContactX: number = 0;
-		let averageContactY: number = 0;
-		if (sumPenetration < 1e-9) {
-			weightedNormalX = 0;
-			weightedNormalY = 0;
-			averageContactX = 0;
-			averageContactY = 0;
-		} else {
-			const inverseSumPenetration: number = 1 / sumPenetration;
-			weightedNormalX = accumulatedNormalXTimesPenetration * inverseSumPenetration;
-			weightedNormalY = accumulatedNormalYTimesPenetration * inverseSumPenetration;
-			averageContactX = accumulatedContactXTimesPenetration * inverseSumPenetration;
-			averageContactY = accumulatedContactYTimesPenetration * inverseSumPenetration;
+		if (closestPoint.distanceSquared >= circleEntity.radius * circleEntity.radius) {
+			return false;
 		}
-		const averageLengthSquared: number = weightedNormalX * weightedNormalX + weightedNormalY * weightedNormalY;
-		let finalNormalX: number = 0;
-		let finalNormalY: number = 0;
-		if (averageLengthSquared < 1e-18) {
-			finalNormalX = 0;
-			finalNormalY = 1;
+		const distance: number = Math.sqrt(closestPoint.distanceSquared);
+		let resolutionNormalX: number = 0;
+		let resolutionNormalY: number = 0;
+		if (distance < 1e-9) {
+			resolutionNormalX = 0;
+			resolutionNormalY = 1;
 		} else {
-			const inverseLength: number = 1 / Math.sqrt(averageLengthSquared);
-			finalNormalX = weightedNormalX * inverseLength;
-			finalNormalY = weightedNormalY * inverseLength;
+			const inverseDistance: number = 1 / distance;
+			resolutionNormalX = (circleEntity.positionX - closestPoint.x) * inverseDistance;
+			resolutionNormalY = (circleEntity.positionY - closestPoint.y) * inverseDistance;
 		}
-		this.resolve(polygonEntity, circleEntity, finalNormalX, finalNormalY, sumPenetration / contactCount, averageContactX, averageContactY);
+		this.resolve(polygonEntity, circleEntity, resolutionNormalX, resolutionNormalY, circleEntity.radius - distance, closestPoint.x, closestPoint.y);
 		return true;
 	}
 
-	public static collidePolygonPolygon(instance: Entity, other: Entity): boolean {
-		const instancePoints: number[] = instance.points!;
-		const otherPoints: number[] = other.points!;
-		const instanceTriangles: Triangle[] = triangulate(instancePoints);
-		const otherTriangles: Triangle[] = triangulate(otherPoints);
-		let bestPenetration: number = 0;
-		let bestNormalX: number = 0;
-		let bestNormalY: number = 0;
-		let bestContactX: number = 0;
-		let bestContactY: number = 0;
-		let collisionFound: boolean = false;
-		for (const instanceTriangle of instanceTriangles) {
-			for (const otherTriangle of otherTriangles) {
-				const satResult = computeSATConvex(instanceTriangle, otherTriangle);
-				if (satResult.collided && satResult.penetration > bestPenetration) {
-					bestPenetration = satResult.penetration;
-					bestNormalX = satResult.normalX;
-					bestNormalY = satResult.normalY;
-					const contact: Vector2 = findContactPoint(instanceTriangle, otherTriangle);
-					bestContactX = contact.x;
-					bestContactY = contact.y;
-					collisionFound = true;
+	public static collidePolygonPolygon(instanceEntity: Entity, otherEntity: Entity): boolean {
+		if (instanceEntity.points === null || otherEntity.points === null) {
+			return false;
+		}
+		let minimumOverlap: number = Infinity;
+		let overlapNormalX: number = 0;
+		let overlapNormalY: number = 0;
+		const combinedAxes: number[] = [];
+		addPolygonAxes(instanceEntity.points, combinedAxes);
+		addPolygonAxes(otherEntity.points, combinedAxes);
+		for (let i: number = 0; i < combinedAxes.length; i += 2) {
+			const currentX: number = combinedAxes[i];
+			const currentY: number = combinedAxes[i + 1];
+			const instanceProjectionResult = projectPolygonOntoAxis(instanceEntity.points, currentX, currentY);
+			const otherProjectionResult = projectPolygonOntoAxis(otherEntity.points, currentX, currentY);
+			if (instanceProjectionResult.maximum < otherProjectionResult.minimum || otherProjectionResult.maximum < instanceProjectionResult.minimum) {
+				return false;
+			}
+			const otherOverlap: number = instanceProjectionResult.maximum - otherProjectionResult.minimum;
+			const instanceOverlap: number = otherProjectionResult.maximum - instanceProjectionResult.minimum;
+			const overlap: number = otherOverlap < instanceOverlap ? otherOverlap : instanceOverlap;
+			if (overlap < minimumOverlap) {
+				minimumOverlap = overlap;
+				const centerToCenterProjection: number = (otherEntity.positionX - instanceEntity.positionX) * currentX + (otherEntity.positionY - instanceEntity.positionY) * currentY;
+				if (centerToCenterProjection < 0) {
+					overlapNormalX = -currentX;
+					overlapNormalY = -currentY;
+				} else {
+					overlapNormalX = currentX;
+					overlapNormalY = currentY;
 				}
 			}
 		}
-		if (!collisionFound) {
+		if (minimumOverlap < 1e-9) {
 			return false;
 		}
-		this.resolve(instance, other, bestNormalX, bestNormalY, bestPenetration, bestContactX, bestContactY);
+		const contactPointResult: ContactPoints = findContactPoints(instanceEntity.points, otherEntity.points);
+		let finalContactX: number = contactPointResult.x;
+		let finalContactY: number = contactPointResult.y;
+		if (contactPointResult.count === 0) {
+			finalContactX = (instanceEntity.positionX + otherEntity.positionX) * 0.5;
+			finalContactY = (instanceEntity.positionY + otherEntity.positionY) * 0.5;
+		}
+		this.resolve(instanceEntity, otherEntity, overlapNormalX, overlapNormalY, minimumOverlap, finalContactX, finalContactY);
 		return true;
 	}
 

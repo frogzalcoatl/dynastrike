@@ -35,7 +35,7 @@ export class QuadTree {
 	public insert(entity: Entity): void {
 		if (this.children === null) {
 			this.entities.push(entity);
-			if (this.entities.length > 11) {
+			if (this.level !== 0 && this.entities.length > 11) {
 				this.split();
 			}
 		} else {

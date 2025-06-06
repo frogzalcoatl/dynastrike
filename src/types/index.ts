@@ -5,14 +5,7 @@ export interface Vector2 {
 	y: number;
 }
 
-export interface ProjectionRange {
-	minimum: number;
-	maximum: number;
-}
-
 export type BoundaryBuffer = number[];
-
-export type Triangle = [number, number, number, number, number, number];
 
 export interface Circle {
 	x: number;
@@ -27,17 +20,15 @@ export interface Box {
 	maxY: number;
 }
 
-export interface SATResult {
-	penetration: number;
-	normalX: number;
-	normalY: number;
-	collided: boolean;
+export interface ClosestPoint {
+	x: number;
+	y: number;
+	distanceSquared: number;
 }
 
-export interface ContactResult {
-	penetration: number;
-	normalX: number;
-	normalY: number;
+export interface ProjectionRange {
+	minimum: number;
+	maximum: number
 }
 
 export interface Projection {
@@ -51,4 +42,10 @@ export interface QuadTreeChildren {
 	topRight: QuadTree;
 	bottomLeft: QuadTree;
 	bottomRight: QuadTree;
+}
+
+export interface ContactPoints {
+	x: number;
+	y: number;
+	count: number
 }

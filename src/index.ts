@@ -2,9 +2,6 @@ export {
 	Collision
 } from "./collision/collide";
 export {
-	computeSATConvex
-} from "./collision/sat";
-export {
 	Entity
 } from "./core/entity";
 export {
@@ -14,21 +11,6 @@ export {
 	boxesIntersect,
 	computeBox
 } from "./geometry/box";
-export {
-	computeMEC,
-	computePenetrationAndNormal,
-	findContactPoint,
-	projectOntoEdge,
-	projectPointOnEdge,
-	projectPolygon
-} from "./geometry/misc";
-export {
-	computeAveragePoint,
-	computeCentroid,
-	isPointInPolygon,
-	isPointInTriangle,
-	triangulate
-} from "./geometry/polygon";
 export {
 	generateEllipse,
 	generateHeart,

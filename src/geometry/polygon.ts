@@ -1,70 +1,204 @@
-import { Triangle, Vector2 } from "../types";
-
-export function computeAveragePoint(points: number[]): Vector2 {
-	const pointCount: number = points.length;
-	let sumX: number = 0;
-	let sumY: number = 0;
-	for (let i: number = 0; i < pointCount; i += 2) {
-		sumX += points[i];
-		sumY += points[i + 1];
-	}
-	const inversePointCount = 1 / pointCount * 2;
-	return {
-		x: sumX * inversePointCount,
-		y: sumY * inversePointCount
-	};
-}
-
-export function computeCentroid(points: number[]): Vector2 {
-	let centerX: number = 0;
-	let centerY: number = 0;
-	let totalCross: number = 0;
-	const length = points.length;
-	for (let i: number = 0, j: number = length - 2; i < length; j = i, i += 2) {
-		const currentX: number = points[i];
-		const currentY: number = points[i + 1];
-		const previousX: number = points[j];
-		const previousY: number = points[j + 1];
-		const cross: number = previousX * currentY - currentX * previousY;
-		totalCross += cross;
-		centerX += (previousX + currentX) * cross;
-		centerY += (previousY + currentY) * cross;
-	}
-	if (totalCross === 0) {
-		return {
-			x: 0,
-			y: 0
-		};
-	}
-	const factor: number = 1 / (3 * totalCross);
-	return {
-		x: centerX * factor,
-		y: centerY * factor
-	};
-}
-
+import { ClosestPoint, ContactPoints, ProjectionRange } from "../types";
+import { projectPointOnEdge } from "./misc";
 
 export function isPointInPolygon(pointX: number, pointY: number, points: number[]): boolean {
 	let isInside: boolean = false;
 	const pointCount: number = points.length;
-	let previousPointX: number = points[pointCount - 2];
-	let previousPointY: number = points[pointCount - 1];
+	let previousX: number = points[pointCount - 2];
+	let previousY: number = points[pointCount - 1];
 	for (let i: number = 0; i < pointCount; i += 2) {
-		const currentPointX: number = points[i];
-		const currentPointY: number = points[i + 1];
-		if (pointX === currentPointX && pointY === currentPointY) {
+		const currentX: number = points[i];
+		const currentY: number = points[i + 1];
+		if (pointX === currentX && pointY === currentY) {
 			return true;
 		}
-		if ((currentPointY > pointY) !== (previousPointY > pointY) && pointX < currentPointX + (previousPointX - currentPointX) * (pointY - currentPointY) / (previousPointY - currentPointY)) {
+		if ((currentY > pointY) !== (previousY > pointY) && pointX < currentX + (previousX - currentX) * (pointY - currentY) / (previousY - currentY)) {
 			isInside = !isInside;
 		}
-		previousPointX = currentPointX;
-		previousPointY = currentPointY;
+		previousX = currentX;
+		previousY = currentY;
 	}
 	return isInside;
 }
 
-export function isPointInTriangle(pointX: number, pointY: number, triangle: Triangle): boolean {
+export function findClosestPointOnPolygonToCircle(points: number[], centerX: number, centerY: number): ClosestPoint {
+	const lastVertexIndexOffset: number = points.length - 2;
+	let closestPointX: number = 0;
+	let closestPointY: number = 0;
+	let minimumDistanceSquared: number = Infinity;
+	for (let i: number = 0; i < lastVertexIndexOffset; i += 2) {
+		const edgeX: number = points[i];
+		const edgeY: number = points[i + 1];
+		const edgeDeltaX: number = points[i + 2] - edgeX;
+		const edgeDeltaY: number = points[i + 3] - edgeY;
+		const edgeLengthSquared: number = edgeDeltaX * edgeDeltaX + edgeDeltaY * edgeDeltaY;
+		const projectionFactor: number = edgeLengthSquared === 0 ? 0 : ((centerX - edgeX) * edgeDeltaX + (centerY - edgeY) * edgeDeltaY) / edgeLengthSquared;
+		const clampedProjectionFactor: number = projectionFactor < 0 ? 0 : projectionFactor > 1 ? 1 : projectionFactor;
+		const projectedX: number = edgeX + edgeDeltaX * clampedProjectionFactor;
+		const projectedY: number = edgeY + edgeDeltaY * clampedProjectionFactor;
+		const deltaX: number = projectedX - centerX;
+		const deltaY: number = projectedY - centerY;
+		const currentDistanceSquared: number = deltaX * deltaX + deltaY * deltaY;
+		if (currentDistanceSquared < minimumDistanceSquared) {
+			minimumDistanceSquared = currentDistanceSquared;
+			closestPointX = projectedX;
+			closestPointY = projectedY;
+		}
+	}
+	const edgeStartX: number = points[lastVertexIndexOffset];
+	const edgeStartY: number = points[lastVertexIndexOffset + 1];
+	const edgeDeltaX: number = points[0] - edgeStartX;
+	const edgeDeltaY: number = points[1] - edgeStartY;
+	const edgeLengthSquared: number = edgeDeltaX * edgeDeltaX + edgeDeltaY * edgeDeltaY;
+	const projectionFactor: number = edgeLengthSquared === 0 ? 0 : ((centerX - edgeStartX) * edgeDeltaX + (centerY - edgeStartY) * edgeDeltaY) / edgeLengthSquared;
+	const clampedProjectionFactor: number = projectionFactor < 0 ? 0 : projectionFactor > 1 ? 1 : projectionFactor;
+	const projectedX: number = edgeStartX + edgeDeltaX * clampedProjectionFactor;
+	const projectedY: number = edgeStartY + edgeDeltaY * clampedProjectionFactor;
+	const deltaX: number = projectedX - centerX;
+	const deltaY: number = projectedY - centerY;
+	const currentDistanceSquared: number = deltaX * deltaX + deltaY * deltaY;
+	if (currentDistanceSquared < minimumDistanceSquared) {
+		minimumDistanceSquared = currentDistanceSquared;
+		closestPointX = projectedX;
+		closestPointY = projectedY;
+	}
+	return {
+		x: closestPointX,
+		y: closestPointY,
+		distanceSquared: minimumDistanceSquared
+	};
+}
+
+export function addPolygonAxes(points: number[], output: number[]): void {
+	const pointCount: number = points.length;
+	for (let i: number = 0; i < pointCount; i += 2) {
+		const normalX: number = -(points[(i + 3) % pointCount] - points[i + 1]);
+		const normalY: number = points[(i + 2) % pointCount] - points[i];
+		const normalLength: number = Math.sqrt(normalX * normalX + normalY * normalY);
+		if (normalLength > 1e-9) {
+			output.push(normalX / normalLength, normalY / normalLength);
+		}
+	}
+}
+
+export function projectPolygonOntoAxis(points: number[], axisX: number, axisY: number): ProjectionRange {
+	let minimumProjection: number = Infinity;
+	let maximumProjection: number = -Infinity;
+	for (let i: number = 0; i < points.length; i += 2) {
+		const currentProjection: number = points[i] * axisX + points[i + 1] * axisY;
+		if (currentProjection < minimumProjection) {
+			minimumProjection = currentProjection;
+		}
+		if (currentProjection > maximumProjection) {
+			maximumProjection = currentProjection;
+		}
+	}
+	return {
+		minimum: minimumProjection,
+		maximum: maximumProjection
+	};
+}
+
+export function findContactPoints(instancePoints: number[], otherPoints: number[]): ContactPoints {
+	const instancePointCount: number = instancePoints.length;
+	const otherPointCount: number = otherPoints.length;
+	const instanceVertexCount: number = instancePointCount >> 1;
+	const otherVertexCount: number = otherPointCount >> 1;
+	let instanceBest: number = -Infinity;
+	let instanceSumX: number = 0;
+	let instanceSumY: number = 0;
+	let instanceCount: number = 0;
+	for (let i: number = 0; i < instancePointCount; i += 2) {
+		const pointX: number = instancePoints[i];
+		const pointY: number = instancePoints[i + 1];
+		if (!isPointInPolygon(pointX, pointY, otherPoints)) {
+			continue;
+		}
+		let minimumDistance: number = Infinity;
+		for (let j: number = 0; j < otherPointCount; j += 2) {
+			const k: number = (j + 2) % otherPointCount;
+			const distanceSquared: number = projectPointOnEdge(pointX, pointY, otherPoints[j], otherPoints[j + 1], otherPoints[k], otherPoints[k + 1]).distanceSquared;
+			if (distanceSquared < minimumDistance) {
+				minimumDistance = distanceSquared;
+			}
+		}
+		if (minimumDistance > instanceBest) {
+			instanceBest = minimumDistance;
+			instanceSumX = pointX;
+			instanceSumY = pointY;
+			instanceCount = 1;
+		} else if (minimumDistance === instanceBest) {
+			instanceSumX += pointX;
+			instanceSumY += pointY;
+			instanceCount++;
+		}
+	}
+	let otherBest: number = -Infinity;
+	let otherSumX: number = 0;
+	let otherSumY: number = 0;
+	let otherCount: number = 0;
+	for (let i: number = 0; i < otherPointCount; i += 2) {
+		const pointX: number = otherPoints[i];
+		const pointY: number = otherPoints[i + 1];
+		if (!isPointInPolygon(pointX, pointY, instancePoints)) {
+			continue;
+		}
+		let minimumDistance = Infinity;
+		for (let j: number = 0; j < instancePointCount; j += 2) {
+			const k: number = (j + 2) % instancePointCount;
+			const distanceSquared: number = projectPointOnEdge(pointX, pointY, instancePoints[j], instancePoints[j + 1], instancePoints[k], instancePoints[k + 1]).distanceSquared;
+			if (distanceSquared < minimumDistance) {
+				minimumDistance = distanceSquared;
+			}
+		}
+		if (minimumDistance > otherBest) {
+			otherBest = minimumDistance;
+			otherSumX = pointX;
+			otherSumY = pointY;
+			otherCount = 1;
+		} else if (minimumDistance === otherBest) {
+			otherSumX += pointX;
+			otherSumY += pointY;
+			otherCount++;
+		}
+	}
+	let finalSumX: number = instanceSumX;
+	let finalSumY: number = instanceSumY;
+	let finalCount: number = instanceCount;
+	let finalBest: number = instanceBest;
+	if (otherCount > 0 && (instanceCount === 0 || otherBest > instanceBest)) {
+		finalSumX = otherSumX;
+		finalSumY = otherSumY;
+		finalCount = otherCount;
+		finalBest = otherBest;
+	}
+	if (finalCount === 0) {
+		let sumIX: number = 0;
+		let sumIY: number = 0;
+		let sumOX: number = 0;
+		let sumOY: number = 0;
+		for (let i: number = 0; i < instancePointCount; i += 2) {
+			sumIX += instancePoints[i];
+			sumIY += instancePoints[i + 1];
+		}
+		for (let i: number = 0; i < otherPointCount; i += 2) {
+			sumOX += otherPoints[i];
+			sumOY += otherPoints[i + 1];
+		}
+		return {
+			x: (sumIX / instanceVertexCount + sumOX / otherVertexCount) * 0.5,
+			y: (sumIY / instanceVertexCount + sumOY / otherVertexCount) * 0.5,
+			count: 1
+		};
+	}
+	return {
+		x: finalSumX / finalCount,
+		y: finalSumY / finalCount,
+		count: finalCount
+	};
+}
+
+/*export function isPointInTriangle(pointX: number, pointY: number, triangle: Triangle): boolean {
 	const vertex1X: number = triangle[0];
 	const vertex1Y: number = triangle[1];
 	const vertex2X: number = triangle[2];
@@ -187,4 +321,4 @@ export function triangulate(points: number[]): Triangle[] {
 	}
 
 	return triangles;
-}
+}*/
