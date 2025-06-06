@@ -1,12 +1,6 @@
-import { Entity } from "../entity/entity";
-import { Box, boxesIntersect } from "../geometry/box";
-
-interface QuadTreeChildren {
-	topLeft: QuadTree;
-	topRight: QuadTree;
-	bottomLeft: QuadTree;
-	bottomRight: QuadTree;
-}
+import { Entity } from "../core/entity";
+import { boxesIntersect } from "../geometry/box";
+import { Box, QuadTreeChildren } from "../types";
 
 export class QuadTree {
 	public box: Box;
@@ -32,7 +26,7 @@ export class QuadTree {
 			bottomLeft: new QuadTree({ minX: this.box.minX, minY: middleY, maxX: middleX, maxY: this.box.maxY }, level),
 			bottomRight: new QuadTree({ minX: middleX, minY: middleY, maxX: this.box.maxX, maxY: this.box.maxY }, level)
 		};
-		for (let i: number = 0; i < this.entities.length; i++) {
+		for (let i: number = 0, length = this.entities.length; i < length; i++) {
 			this.insert(this.entities[i]);
 		}
 		this.entities = [];
@@ -41,22 +35,22 @@ export class QuadTree {
 	public insert(entity: Entity): void {
 		if (this.children === null) {
 			this.entities.push(entity);
-			if (this.level > 0 && this.entities.length > 5) {
+			if (this.entities.length > 11) {
 				this.split();
 			}
-			return;
-		}
-		if (boxesIntersect(this.children.topLeft.box, entity.box)) {
-			this.children.topLeft.insert(entity);
-		}
-		if (boxesIntersect(this.children.topRight.box, entity.box)) {
-			this.children.topRight.insert(entity);
-		}
-		if (boxesIntersect(this.children.bottomLeft.box, entity.box)) {
-			this.children.bottomLeft.insert(entity);
-		}
-		if (boxesIntersect(this.children.bottomRight.box, entity.box)) {
-			this.children.bottomRight.insert(entity);
+		} else {
+			if (boxesIntersect(this.children.topLeft.box, entity.box)) {
+				this.children.topLeft.insert(entity);
+			}
+			if (boxesIntersect(this.children.topRight.box, entity.box)) {
+				this.children.topRight.insert(entity);
+			}
+			if (boxesIntersect(this.children.bottomLeft.box, entity.box)) {
+				this.children.bottomLeft.insert(entity);
+			}
+			if (boxesIntersect(this.children.bottomRight.box, entity.box)) {
+				this.children.bottomRight.insert(entity);
+			}
 		}
 	}
 

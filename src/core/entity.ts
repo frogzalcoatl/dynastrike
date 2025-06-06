@@ -1,7 +1,6 @@
-import { Box } from "../geometry/box";
-import { Circle, computeMEC } from "../geometry/mec";
-import { Vector2 } from "../geometry/vector";
-import { isPointInPolygon } from "../physics/utilities";
+import { computeMEC } from "../geometry/misc";
+import { isPointInPolygon } from "../geometry/polygon";
+import { Box, Circle, Vector2 } from "../types";
 
 const TAU: number = Math.PI * 2;
 
@@ -18,8 +17,8 @@ export class Entity {
 	public isStatic: boolean = false;
 	public box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 	public points: number[] | null = null;
-	public frictionCoefficient: number = 0;
-	public restitution: number = 1;
+	public frictionCoefficient: number = 1;
+	public restitution: number = 0;
 	public linearDampingFactor: number = 0.9;
 	public angularDampeningFactor: number = 0.9;
 	public readonly index: number = Entity.entityIndexTicker++;
@@ -83,7 +82,11 @@ export class Entity {
 
 	public set angle(angle: number) {
 		const delta: number = angle - this._angle;
-		this._angle = (((angle % TAU) + TAU) % TAU);
+		if (angle >= TAU || angle < 0) {
+			this._angle = angle - TAU * Math.floor(angle / TAU);
+		} else {
+			this._angle = angle;
+		}
 		if (this.points === null) {
 			return;
 		}
@@ -258,18 +261,18 @@ export class Entity {
 		return cloneEntity;
 	}
 
-	public update(): void {
+	public update(deltaTime: number): void {
 		if (Math.abs(this.positionalVelocity.x) > 1e-3) {
-			this.positionalVelocity.x *= this.linearDampingFactor;
-			this.positionX += this.positionalVelocity.x;
+			this.positionX += this.positionalVelocity.x * deltaTime;
+			this.positionalVelocity.x *= Math.pow(this.linearDampingFactor, deltaTime);
 		}
 		if (Math.abs(this.positionalVelocity.y) > 1e-3) {
-			this.positionalVelocity.y *= this.linearDampingFactor;
-			this.positionY += this.positionalVelocity.y;
+			this.positionY += this.positionalVelocity.y * deltaTime;
+			this.positionalVelocity.y *= Math.pow(this.linearDampingFactor, deltaTime);
 		}
 		if (Math.abs(this.angularVelocity) > 1e-5) {
-			this.angularVelocity *= this.angularDampeningFactor;
-			this.angle += this.angularVelocity;
+			this.angle += this.angularVelocity * deltaTime;
+			this.angularVelocity *= Math.pow(this.angularDampeningFactor, deltaTime);
 		}
 	}
 }

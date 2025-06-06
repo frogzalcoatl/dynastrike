@@ -1,36 +1,52 @@
 export {
-	Box,
+	Collision
+} from "./collision/collide";
+export {
+	computeSATConvex
+} from "./collision/sat";
+export {
+	Entity
+} from "./core/entity";
+export {
+	Scene
+} from "./core/scene";
+export {
 	boxesIntersect,
 	computeBox
 } from "./geometry/box";
-
 export {
-	Circle,
-	circleFromRadius,
 	computeMEC,
-	welzl
-} from "./geometry/mec";
-
+	computePenetrationAndNormal,
+	findContactPoint,
+	projectOntoEdge,
+	projectPointOnEdge,
+	projectPolygon
+} from "./geometry/misc";
 export {
-	Vector2
-} from "./geometry/vector";
-
-export {
-	QuadTree
-} from "./physics/quadtree";
-
-export {
-	Scene
-} from "./scene/scene";
-
-export {
-	Entity
-} from "./entity/entity";
-
+	computeAveragePoint,
+	computeCentroid,
+	isPointInPolygon,
+	isPointInTriangle,
+	triangulate
+} from "./geometry/polygon";
 export {
 	generateEllipse,
 	generateHeart,
 	generatePolygon,
 	generateRectangle,
 	generateStar
-} from "./tools/generator";
+} from "./shapes/generators";
+export {
+	QuadTree
+} from "./spatial/quadtree";
+export type {
+	Box,
+	Circle,
+	ContactResult,
+	Projection,
+	ProjectionRange,
+	QuadTreeChildren,
+	SATResult,
+	Triangle,
+	Vector2
+} from "./types";

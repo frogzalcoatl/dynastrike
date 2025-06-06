@@ -1,24 +1,19 @@
-export interface Box {
-	minX: number;
-	minY: number;
-	maxX: number;
-	maxY: number;
-}
+import { Box } from "../types";
 
 export function boxesIntersect(instance: Box, other: Box): boolean {
 	return !(instance.minX >= other.maxX || instance.maxX <= other.minX || instance.minY >= other.maxY || instance.maxY <= other.minY);
 }
 
 export function computeBox(points: number[]): Box {
-	const box = {
+	const box: Box = {
 		minX: points[0],
 		minY: points[1],
 		maxX: points[0],
 		maxY: points[1]
 	};
 	for (let i = 2; i < points.length; i += 2) {
-		const pointX = points[i];
-		const pointY = points[i + 1];
+		const pointX: number = points[i];
+		const pointY: number = points[i + 1];
 		if (box.minX > pointX) {
 			box.minX = pointX;
 		}

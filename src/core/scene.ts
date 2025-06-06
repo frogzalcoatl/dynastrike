@@ -1,9 +1,9 @@
-import { Entity } from "../entity/entity";
-import { Box } from "../geometry/box";
-import { Collision } from "../physics/collision";
-import { QuadTree } from "../physics/quadtree";
+import { Collision } from "../collision/collide";
+import { QuadTree } from "../spatial/quadtree";
+import { Box } from "../types";
+import { Entity } from "./entity";
 
-function getPairIndex(index1: number, index2: number): number {
+export function getPairIndex(index1: number, index2: number): number {
 	let minimumIndex: number;
 	let maximumIndex: number;
 	if (index1 < index2) {
@@ -17,29 +17,21 @@ function getPairIndex(index1: number, index2: number): number {
 }
 
 export class Scene {
-	public entities: Entity[];
+	public entities: Set<Entity>;
 	public quadTree: QuadTree;
 	public box: Box;
 	constructor(box: Box) {
-		this.entities = [];
-		this.quadTree = new QuadTree(box, 8);
+		this.entities = new Set<Entity>();
+		this.quadTree = new QuadTree(box, 99);
 		this.box = box;
 	}
 
-	public addEntity(entity: Entity): number {
-		if (this.entities.includes(entity)) {
-			return -1;
-		}
-		return this.entities.push(entity);
+	public addEntity(entity: Entity): void {
+		this.entities.add(entity);
 	}
 
-	public removeEntity(entity: Entity): boolean {
-		const index: number = this.entities.indexOf(entity);
-		if (index === -1) {
-			return false;
-		}
-		this.entities.splice(index, 1);
-		return true;
+	public removeEntity(entity: Entity): void {
+		this.entities.delete(entity);
 	}
 
 	private earthlyShackles(entity: Entity): void {
@@ -60,20 +52,25 @@ export class Scene {
 	}
 
 	public update(): void {
+		this.step(1);
+	}
+
+	private step(deltaTimeSeconds: number): void {
 		this.quadTree.clear();
 		const processedCollisions: Set<number> = new Set<number>();
-		const length: number = this.entities.length;
-		for (let i: number = 0; i < length; i++) {
-			const instance: Entity = this.entities[i];
-			instance.update();
+		for (const instance of this.entities.values()) {
+			instance.update(deltaTimeSeconds);
 			const potentialColliders: Set<Entity> = this.quadTree.query(instance.box);
 			this.quadTree.insert(instance);
-			for (const other of potentialColliders) {
+			for (const other of potentialColliders.values()) {
 				const pairIndex: number = getPairIndex(instance.index, other.index);
 				if (processedCollisions.has(pairIndex)) {
 					continue;
 				}
 				processedCollisions.add(pairIndex);
+				if (instance.isStatic && other.isStatic) {
+					continue;
+				}
 				Collision.collide(instance, other);
 				this.earthlyShackles(other);
 			}
