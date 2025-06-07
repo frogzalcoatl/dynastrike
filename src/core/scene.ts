@@ -22,7 +22,7 @@ export class Scene {
 	public box: Box;
 	constructor(box: Box) {
 		this.entities = new Set<Entity>();
-		this.quadTree = new QuadTree(box, 12);
+		this.quadTree = new QuadTree(box, 32);
 		this.box = box;
 	}
 

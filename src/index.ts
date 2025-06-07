@@ -24,11 +24,8 @@ export {
 export type {
 	Box,
 	Circle,
-	ContactResult,
 	Projection,
 	ProjectionRange,
 	QuadTreeChildren,
-	SATResult,
-	Triangle,
 	Vector2
 } from "./types";
