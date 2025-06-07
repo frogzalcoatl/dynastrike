@@ -24,10 +24,10 @@
 	<script src="../dist/dynastrike.global.js"></script>
 	<script>
 		const scene = new Dynastrike.Scene({
-			minX: -8192,
-			minY: -8192,
-			maxX: 8192,
-			maxY: 8192
+			minX: -8192 / 4,
+			minY: -8192 / 4,
+			maxX: 8192 / 4,
+			maxY: 8192 / 4
 		});
 		const generators = [
 			() => null,
@@ -35,7 +35,7 @@
 			//() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * Math.random())),
 			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * Math.random()))
 		]
-		for (let i = 0; i < 5000; i++) {
+		for (let i = 0; i < 20; i++) {
 			const x = scene.box.minX + Math.random() * (scene.box.maxX - scene.box.minX);
 			const y = scene.box.minY + Math.random() * (scene.box.maxY - scene.box.minY);
 			const radius = 20 + 50 * Math.random();
@@ -48,7 +48,7 @@
 		for (let i = 0; i < generators.length * 4; i++) {
 			const x = scene.box.minX + Math.random() * (scene.box.maxX - scene.box.minX);
 			const y = scene.box.minY + Math.random() * (scene.box.maxY - scene.box.minY);
-			const radius = (20 + 50 * Math.random()) * 25;
+			const radius = (20 + 50 * Math.random()) * 25 / 4;
 			const entity = new Dynastrike.Entity(x, y, radius, generators[i % generators.length]());
 			entity.isStatic = true;
 			scene.addEntity(entity);

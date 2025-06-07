@@ -17,8 +17,8 @@ export class Entity {
 	public isStatic: boolean = false;
 	public box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 	public points: number[] | null = null;
-	public frictionCoefficient: number = 1;
-	public restitution: number = 0;
+	public frictionCoefficient: number = 0.6;
+	public restitution: number = 0.4;
 	public linearDampingFactor: number = 0.9;
 	public angularDampeningFactor: number = 0.9;
 	public readonly index: number = Entity.entityIndexTicker++;
@@ -210,25 +210,6 @@ export class Entity {
 		this.positionalVelocity.x = 0;
 		this.positionalVelocity.y = 0;
 		this.angularVelocity = 0;
-	}
-
-	private applyImpulse(impulse: Vector2, contactPoint: Vector2 | null = null): void {
-		this.positionalVelocity.x += impulse.x / this._mass;
-		this.positionalVelocity.y += impulse.y / this._mass;
-		if (contactPoint === null || this.points === null) {
-			return;
-		}
-		this.angularVelocity += ((contactPoint.x - this._position.x) * impulse.x - (contactPoint.y - this._position.y) * impulse.x) / this.inertia;
-	}
-
-	public applyForce(forceX: number, forceY: number, point: Vector2 | null = null): void {
-		if (this.isStatic) return;
-		this.positionalVelocity.x += forceX / this._mass;
-		this.positionalVelocity.y += forceY / this._mass;
-		if (point && this.points !== null) {
-			const torque = (point.x - this._position.x) * forceY - (point.y - this._position.y) * forceX;
-			this.angularVelocity += torque / this.inertia;
-		}
 	}
 
 	public isPointInside(pointX: number, pointY: number): boolean {

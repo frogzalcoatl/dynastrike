@@ -5,13 +5,11 @@ import { Box, QuadTreeChildren } from "../types";
 export class QuadTree {
 	public box: Box;
 	public level: number;
-	public children: QuadTreeChildren | null;
-	public entities: Entity[];
+	public children: QuadTreeChildren | null = null;
+	public entities: Entity[] = [];
 	constructor(box: Box, level: number) {
 		this.box = box;
 		this.level = level;
-		this.children = null;
-		this.entities = [];
 	}
 
 	public split(): void {
@@ -27,12 +25,12 @@ export class QuadTree {
 			bottomRight: new QuadTree({ minX: middleX, minY: middleY, maxX: this.box.maxX, maxY: this.box.maxY }, level)
 		};
 		for (let i: number = 0, length = this.entities.length; i < length; i++) {
-			this.insert(this.entities[i]);
+			this.insertEntity(this.entities[i]);
 		}
 		this.entities = [];
 	}
 
-	public insert(entity: Entity): void {
+	public insertEntity(entity: Entity): void {
 		if (this.children === null) {
 			this.entities.push(entity);
 			if (this.level !== 0 && this.entities.length > 11) {
@@ -40,16 +38,16 @@ export class QuadTree {
 			}
 		} else {
 			if (boxesIntersect(this.children.topLeft.box, entity.box)) {
-				this.children.topLeft.insert(entity);
+				this.children.topLeft.insertEntity(entity);
 			}
 			if (boxesIntersect(this.children.topRight.box, entity.box)) {
-				this.children.topRight.insert(entity);
+				this.children.topRight.insertEntity(entity);
 			}
 			if (boxesIntersect(this.children.bottomLeft.box, entity.box)) {
-				this.children.bottomLeft.insert(entity);
+				this.children.bottomLeft.insertEntity(entity);
 			}
 			if (boxesIntersect(this.children.bottomRight.box, entity.box)) {
-				this.children.bottomRight.insert(entity);
+				this.children.bottomRight.insertEntity(entity);
 			}
 		}
 	}

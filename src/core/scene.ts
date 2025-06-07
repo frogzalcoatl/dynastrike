@@ -61,7 +61,7 @@ export class Scene {
 		for (const instance of this.entities.values()) {
 			instance.update(deltaTimeSeconds);
 			const potentialColliders: Set<Entity> = this.quadTree.query(instance.box);
-			this.quadTree.insert(instance);
+			this.quadTree.insertEntity(instance);
 			for (const other of potentialColliders.values()) {
 				const pairIndex: number = getPairIndex(instance.index, other.index);
 				if (processedCollisions.has(pairIndex)) {
