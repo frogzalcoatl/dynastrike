@@ -94,8 +94,8 @@ export class Collision {
 			return false;
 		}
 		const distance: number = Math.sqrt(distanceSquared);
-		let normalX: number;
-		let normalY: number;
+		let normalX: number = 0;
+		let normalY: number = 0;
 		if (distance < 1e-9) {
 			normalX = 0;
 			normalY = 1;
