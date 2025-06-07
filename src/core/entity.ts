@@ -1,12 +1,11 @@
-import { Box } from "../geometry/box";
-import { Circle, computeMEC } from "../geometry/mec";
-import { Vector2 } from "../geometry/vector";
-import { isPointInPolygon } from "../physics/utilities";
+import { computeMEC } from "../geometry/misc";
+import { isPointInPolygon } from "../geometry/polygon";
+import { Box, Circle, Vector2 } from "../types";
 
 const TAU: number = Math.PI * 2;
 
 export class Entity {
-	private static entityIndexTicker: number = 0;
+	private static entityIndexTicker: number = 1;
 	private _position: Vector2 = { x: 0, y: 0 };
 	public positionalVelocity: Vector2 = { x: 0, y: 0 };
 	private _angle: number = 0;
@@ -18,7 +17,11 @@ export class Entity {
 	public isStatic: boolean = false;
 	public box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 	public points: number[] | null = null;
-	public readonly index: number = ++Entity.entityIndexTicker;
+	public frictionCoefficient: number = 0.6;
+	public restitution: number = 0.4;
+	public linearDampingFactor: number = 0.9;
+	public angularDampeningFactor: number = 0.9;
+	public readonly index: number = Entity.entityIndexTicker++;
 	public constructor(positionX: number, positionY: number, radius: number, points: number[] | null = null) {
 		this._position.x = positionX;
 		this._position.y = positionY;
@@ -79,7 +82,11 @@ export class Entity {
 
 	public set angle(angle: number) {
 		const delta: number = angle - this._angle;
-		this._angle = (((angle % TAU) + TAU) % TAU);
+		if (angle >= TAU || angle < 0) {
+			this._angle = angle - TAU * Math.floor(angle / TAU);
+		} else {
+			this._angle = angle;
+		}
 		if (this.points === null) {
 			return;
 		}
@@ -205,25 +212,6 @@ export class Entity {
 		this.angularVelocity = 0;
 	}
 
-	private applyImpulse(impulse: Vector2, contactPoint: Vector2 | null = null): void {
-		this.positionalVelocity.x += impulse.x / this._mass;
-		this.positionalVelocity.y += impulse.x / this._mass;
-		if (contactPoint === null || this.points === null) {
-			return;
-		}
-		this.angularVelocity += ((contactPoint.x - this._position.x) * impulse.x - (contactPoint.y - this._position.y) * impulse.x) / this.inertia;
-	}
-
-	public applyForce(forceX: number, forceY: number, point: Vector2 | null = null): void {
-		if (this.isStatic) return;
-		this.positionalVelocity.x += forceX / this._mass;
-		this.positionalVelocity.y += forceY / this._mass;
-		if (point && this.points !== null) {
-			const torque = (point.x - this._position.x) * forceY - (point.y - this._position.y) * forceX;
-			this.angularVelocity += torque / this.inertia;
-		}
-	}
-
 	public isPointInside(pointX: number, pointY: number): boolean {
 		if (this.points === null) {
 			const distanceX = pointX - this._position.x;
@@ -254,18 +242,18 @@ export class Entity {
 		return cloneEntity;
 	}
 
-	public update(): void {
+	public update(deltaTime: number): void {
 		if (Math.abs(this.positionalVelocity.x) > 1e-3) {
-			this.positionalVelocity.x *= 0.8;
-			this.positionX += this.positionalVelocity.x;
+			this.positionX += this.positionalVelocity.x * deltaTime;
+			this.positionalVelocity.x *= Math.pow(this.linearDampingFactor, deltaTime);
 		}
 		if (Math.abs(this.positionalVelocity.y) > 1e-3) {
-			this.positionalVelocity.y *= 0.8;
-			this.positionY += this.positionalVelocity.y;
+			this.positionY += this.positionalVelocity.y * deltaTime;
+			this.positionalVelocity.y *= Math.pow(this.linearDampingFactor, deltaTime);
 		}
 		if (Math.abs(this.angularVelocity) > 1e-5) {
-			this.angularVelocity *= 0.8;
-			this.angle += this.angularVelocity;
+			this.angle += this.angularVelocity * deltaTime;
+			this.angularVelocity *= Math.pow(this.angularDampeningFactor, deltaTime);
 		}
 	}
 }

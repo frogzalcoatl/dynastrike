@@ -1,12 +1,48 @@
-export interface Circle {
-	x: number;
-	y: number;
-	radius: number;
+import { Circle, Projection } from "../types";
+
+export function projectPointOnEdge(pointX: number, pointY: number, vertex1X: number, vertex1Y: number, vertex2X: number, vertex2Y: number): Projection {
+	const differenceX: number = pointX - vertex1X;
+	const differenceY: number = pointY - vertex1Y;
+	const edgeX: number = vertex2X - vertex1X;
+	const edgeY: number = vertex2Y - vertex1Y;
+	const edgeLengthSquared: number = edgeX * edgeX + edgeY * edgeY;
+	if (edgeLengthSquared < 1e-9) {
+		return {
+			x: vertex1X,
+			y: vertex1Y,
+			distanceSquared: differenceX * differenceX + differenceY * differenceY,
+		};
+	}
+	const dotProduct: number = differenceX * edgeX + differenceY * edgeY;
+	if (dotProduct < 0) {
+		return {
+			x: vertex1X,
+			y: vertex1Y,
+			distanceSquared: differenceX * differenceX + differenceY * differenceY,
+		};
+	}
+	if (dotProduct > edgeLengthSquared) {
+		const differenceX2: number = pointX - vertex2X;
+		const differenceY2: number = pointY - vertex2Y;
+		return {
+			x: vertex2X,
+			y: vertex2Y,
+			distanceSquared: differenceX2 * differenceX2 + differenceY2 * differenceY2,
+		};
+	}
+	const projectionFactor: number = dotProduct / edgeLengthSquared;
+	const projectionX: number = vertex1X + projectionFactor * edgeX;
+	const projectionY: number = vertex1Y + projectionFactor * edgeY;
+	const distanceToProjectionX: number = pointX - projectionX;
+	const distanceToProjectionY: number = pointY - projectionY;
+	return {
+		x: projectionX,
+		y: projectionY,
+		distanceSquared: distanceToProjectionX * distanceToProjectionX + distanceToProjectionY * distanceToProjectionY,
+	};
 }
 
-type BoundaryBuffer = number[];
-
-export function circleFromRadius(boundary: BoundaryBuffer, size: number): Circle {
+export function circleFromRadius(boundary: number[], size: number): Circle {
 	if (size === 0) {
 		return {
 			x: 0,
@@ -29,9 +65,9 @@ export function circleFromRadius(boundary: BoundaryBuffer, size: number): Circle
 		const distanceX: number = otherPointX - instancePointX;
 		const distanceY: number = otherPointY - instancePointY;
 		return {
-			x: (instancePointX + otherPointX) / 2,
-			y: (instancePointY + otherPointY) / 2,
-			radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) / 2
+			x: (instancePointX + otherPointX) * 0.5,
+			y: (instancePointY + otherPointY) * 0.5,
+			radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) * 0.5
 		};
 	}
 	const point1X: number = boundary[0];
@@ -64,30 +100,24 @@ export function circleFromRadius(boundary: BoundaryBuffer, size: number): Circle
 		};
 	}
 	if (squaredDistance12 < 1e-12) {
-		const distanceX: number = point3X - point1X;
-		const distanceY: number = point3Y - point1Y;
 		return {
-			x: (point1X + point3X) / 2,
-			y: (point1Y + point3Y) / 2,
-			radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) / 2
+			x: (point1X + point3X) * 0.5,
+			y: (point1Y + point3Y) * 0.5,
+			radius: Math.sqrt((point3X - point1X) * (point3X - point1X) + (point3Y - point1Y) * (point3Y - point1Y)) * 0.5
 		}
 	}
 	if (squaredDistance23 < 1e-12) {
-		const distanceX: number = point1X - point2X;
-		const distanceY: number = point1Y - point2Y;
 		return {
-			x: (point2X + point1X) / 2,
-			y: (point2Y + point1Y) / 2,
-			radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) / 2
+			x: (point2X + point1X) * 0.5,
+			y: (point2Y + point1Y) * 0.5,
+			radius: Math.sqrt((point1X - point2X) * (point1X - point2X) + (point1Y - point2Y) * (point1Y - point2Y)) * 0.5
 		};
 	}
 	if (squaredDistance31 < 1e-12) {
-		const distanceX: number = point2X - point3X;
-		const distanceY: number = point2Y - point3Y;
 		return {
-			x: (point3X + point2X) / 2,
-			y: (point3Y + point2Y) / 2,
-			radius: Math.sqrt(distanceX * distanceX + distanceY * distanceY) / 2
+			x: (point3X + point2X) * 0.5,
+			y: (point3Y + point2Y) * 0.5,
+			radius: Math.sqrt((point2X - point3X) * (point2X - point3X) + (point2Y - point3Y) * (point2Y - point3Y)) * 0.5
 		};
 	}
 	let maxSquaredSide: number = squaredDistance12;
@@ -111,17 +141,17 @@ export function circleFromRadius(boundary: BoundaryBuffer, size: number): Circle
 	}
 	if (maxSquaredSide > squaredDistance12 + squaredDistance23 + squaredDistance31 - maxSquaredSide + 1e-12) {
 		return {
-			x: (farPointUX + farPointVX) / 2,
-			y: (farPointUY + farPointVY) / 2,
-			radius: Math.sqrt(maxSquaredSide) / 2
+			x: (farPointUX + farPointVX) * 0.5,
+			y: (farPointUY + farPointVY) * 0.5,
+			radius: Math.sqrt(maxSquaredSide) * 0.5
 		};
 	}
 	const determinant: number = 2 * (point1X * (point2Y - point3Y) + point2X * (point3Y - point1Y) + point3X * (point1Y - point2Y));
 	if (Math.abs(determinant) < 1e-12) {
 		return {
-			x: (farPointUX + farPointVX) / 2,
-			y: (farPointUY + farPointVY) / 2,
-			radius: Math.sqrt(maxSquaredSide) / 2
+			x: (farPointUX + farPointVX) * 0.5,
+			y: (farPointUY + farPointVY) * 0.5,
+			radius: Math.sqrt(maxSquaredSide) * 0.5
 		};
 	}
 	const squaredLength1: number = point1X * point1X + point1Y * point1Y;
@@ -138,43 +168,39 @@ export function circleFromRadius(boundary: BoundaryBuffer, size: number): Circle
 	};
 }
 
-export function welzl(points: number[], pointCount: number, boundary: BoundaryBuffer, size: number): Circle {
+export function welzl(points: number[], pointCount: number, boundary: number[], size: number): Circle {
 	if (pointCount === 0 || size === 6) {
 		return circleFromRadius(boundary, size);
 	}
-	const flatIndex: number = (pointCount - 1) << 1;
+	const pointIndex: number = pointCount - 1;
+	const flatIndex: number = pointIndex << 1;
 	const pointX: number = points[flatIndex];
 	const pointY: number = points[flatIndex + 1];
-	const circleCandidate: Circle = welzl(points, pointCount - 1, boundary, size);
-	const deltaPointX: number = pointX - circleCandidate.x;
-	const deltaPointY: number = pointY - circleCandidate.y;
-	if (circleCandidate.radius > 0 && deltaPointX * deltaPointX + deltaPointY * deltaPointY <= circleCandidate.radius * circleCandidate.radius + 1e-9) {
+	const circleCandidate: Circle = welzl(points, pointIndex, boundary, size);
+	const deltaX: number = pointX - circleCandidate.x;
+	const deltaY: number = pointY - circleCandidate.y;
+	if (circleCandidate.radius > 0 && (deltaX * deltaX + deltaY * deltaY) <= (circleCandidate.radius * circleCandidate.radius) + 1e-9) {
 		return circleCandidate;
 	}
 	boundary[size] = pointX;
 	boundary[size + 1] = pointY;
-	const circleWithPoint: Circle = welzl(points, pointCount - 1, boundary, size + 2);
-	return circleWithPoint;
+	return welzl(points, pointIndex, boundary, size + 2);
 }
 
 export function computeMEC(points: number[]): Circle {
-	const totalCoordinatesLength: number = points.length;
-	const pointCount: number = totalCoordinatesLength >> 1;
+	const pointCount: number = points.length >> 1;
 	for (let i: number = pointCount - 1; i > 0; --i) {
-		const j: number = (Math.random() * (i + 1)) | 0;
-		if (j === i) {
-			continue;
+		const j: number = Math.floor(Math.random() * (i + 1));
+		if (j !== i) {
+			const ix: number = i << 1;
+			const jx: number = j << 1;
+			const temporaryX: number = points[ix];
+			points[ix] = points[jx];
+			points[jx] = temporaryX;
+			const temporaryY: number = points[ix + 1];
+			points[ix + 1] = points[jx + 1];
+			points[jx + 1] = temporaryY;
 		}
-		const ix: number = i << 1;
-		const iy: number = ix + 1;
-		const jx: number = j << 1;
-		const jy: number = jx + 1;
-		const pointX: number = points[ix];
-		const pointY: number = points[iy];
-		points[ix] = points[jx];
-		points[iy] = points[jy];
-		points[jx] = pointX;
-		points[jy] = pointY;
 	}
 	return welzl(points, pointCount, [0, 0, 0, 0, 0, 0], 0);
 }

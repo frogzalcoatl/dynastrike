@@ -24,28 +24,36 @@
 	<script src="../dist/dynastrike.global.js"></script>
 	<script>
 		const scene = new Dynastrike.Scene({
-			minX: -2048,
-			minY: -2048,
-			maxX: 2048,
-			maxY: 2048
+			minX: -8192 / 4,
+			minY: -8192 / 4,
+			maxX: 8192 / 4,
+			maxY: 8192 / 4
 		});
-		const playerEntity = new Dynastrike.Entity(0, 0, 50, Dynastrike.generatePolygon(0, 0, 1, 3));
-		playerEntity.mass = 1;
-		scene.addEntity(playerEntity);
 		const generators = [
 			() => null,
 			() => Dynastrike.generatePolygon(0, 0, 1, 3 + Math.floor(4 * Math.random())),
-			() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * Math.random())),
+			//() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * Math.random())),
 			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * Math.random()))
 		]
-		for (let i = 0; i < 250; i++) {
-			const angle = Math.random() * Math.PI * 2;
-			const distance = 400 + Math.random() * 2048;
-			const radius = 20 + Math.random() * (Math.random() / 2 + 0.5) * 60;
-			const entity = new Dynastrike.Entity(Math.cos(angle) * distance, Math.sin(angle) * distance, radius, generators[Math.floor(generators.length * Math.random() * Math.random())]());
-			entity.angle = Math.PI / 4;
+		for (let i = 0; i < 20; i++) {
+			const x = scene.box.minX + Math.random() * (scene.box.maxX - scene.box.minX);
+			const y = scene.box.minY + Math.random() * (scene.box.maxY - scene.box.minY);
+			const radius = 20 + 50 * Math.random();
+			const entity = new Dynastrike.Entity(x, y, radius, generators[Math.floor(generators.length * Math.random() * Math.random())]());
+			scene.addEntity(entity);
+			entity.angle = Math.PI * 2 * Math.random();
+		}
+		let playerEntity = new Dynastrike.Entity(0, 0, 100, Dynastrike.generatePolygon(0, 0, 1, 3));
+		playerEntity.isStatic = false;
+		for (let i = 0; i < generators.length * 4; i++) {
+			const x = scene.box.minX + Math.random() * (scene.box.maxX - scene.box.minX);
+			const y = scene.box.minY + Math.random() * (scene.box.maxY - scene.box.minY);
+			const radius = (20 + 50 * Math.random()) * 25 / 4;
+			const entity = new Dynastrike.Entity(x, y, radius, generators[i % generators.length]());
+			entity.isStatic = true;
 			scene.addEntity(entity);
 		}
+		scene.addEntity(playerEntity);
 		const canvasElement = document.createElement("canvas");
 		document.body.appendChild(canvasElement);
 		const ctx = canvasElement.getContext("2d", { alpha: false, willReadFrequently: false, desynchronized: true });
@@ -74,22 +82,23 @@
 		});
 		function playerInput() {
 			if (commands & 1) {
-				playerEntity.positionalVelocity.y -= 1;
+				playerEntity.positionalVelocity.y -= 0.25;
 			}
 			if (commands & 2) {
-				playerEntity.positionalVelocity.y += 1;
+				playerEntity.positionalVelocity.y += 0.25;
 			}
 			if (commands & 4) {
-				playerEntity.positionalVelocity.x -= 1;
+				playerEntity.positionalVelocity.x -= 0.25;
 			}
 			if (commands & 8) {
-				playerEntity.positionalVelocity.x += 1;
+				playerEntity.positionalVelocity.x += 0.25;
 			}
 		}
 		let cameraX = 0;
 		let cameraY = 0;
 		let draggingEntity = null;
 		let dragOffset = { x: 0, y: 0 };
+		canvasElement.oncontextmenu = () => false;
 		canvasElement.addEventListener("mousedown", function (event) {
 			const boundingRectangle = canvasElement.getBoundingClientRect();
 			const mouseX = event.clientX - boundingRectangle.left;
@@ -111,7 +120,11 @@
 				}
 			}
 			if (closestEntity) {
-				draggingEntity = closestEntity;
+				if (event.button === 0) {
+					draggingEntity = closestEntity;
+				} else {
+					playerEntity = closestEntity;
+				}
 			}
 		});
 		canvasElement.addEventListener("mousemove", function (event) {
@@ -182,7 +195,7 @@
 			ctx.fillStyle = pattern;
 			ctx.fillRect(backgroundMinX, backgroundMinY, backgroundMaxX - backgroundMinX, backgroundMaxY - backgroundMinY);
 		}
-		const colors = ["#AAAA00", "#202020", "#7a7ab3", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
+		const colors = ["#AAAA00", "#202020", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
 		function drawEntities() {
 			const viewEntities = scene.quadTree.query({
 				minX: cameraX - canvasElement.width / 2,
@@ -205,11 +218,21 @@
 				}
 				ctx.closePath();
 				ctx.fill();
+				ctx.strokeStyle = "#000000";
+				ctx.lineWidth = 0;
+				ctx.beginPath();
+				ctx.moveTo(entity.positionX, entity.positionY);
+				ctx.lineTo(entity.positionX + Math.cos(entity.angle) * entity.radius, entity.positionY + Math.sin(entity.angle) * entity.radius);
+				ctx.closePath();
+				ctx.stroke();
 			}
 		}
 		function animationFrame() {
 			playerInput();
-			scene.update();
+			let sceneUpdateTime = performance.now();
+			const measurements = scene.update();
+			sceneUpdateTime = performance.now() - sceneUpdateTime;
+			let renderTime = performance.now();
 			cameraX = cameraX + (playerEntity.positionX - cameraX) * 0.05;
 			cameraY = cameraY + (playerEntity.positionY - cameraY) * 0.05;
 			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -220,6 +243,13 @@
 			drawBackground();
 			drawEntities();
 			ctx.restore();
+			renderTime = performance.now() - renderTime;
+			ctx.fillStyle = "#ffffff";
+			ctx.font = "16px monospace";
+			ctx.textAlign = "left";
+			let y = 0;
+			ctx.fillText(`scene update: ${sceneUpdateTime.toFixed(1)}mspt`, 10, y += 20);
+			ctx.fillText(`render: ${renderTime.toFixed(1)}mspt`, 10, y += 20);
 			requestAnimationFrame(animationFrame);
 		}
 		requestAnimationFrame(animationFrame);
