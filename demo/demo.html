@@ -24,10 +24,10 @@
 	<script src="../dist/dynastrike.global.js"></script>
 	<script>
 		const scene = new Dynastrike.Scene({
-			minX: -8192 / 4,
-			minY: -8192 / 4,
-			maxX: 8192 / 4,
-			maxY: 8192 / 4
+			minX: -16384,
+			minY: -16384,
+			maxX: 16384,
+			maxY: 16384
 		});
 		const generators = [
 			() => null,
@@ -35,7 +35,7 @@
 			//() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * Math.random())),
 			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * Math.random()))
 		]
-		for (let i = 0; i < 20; i++) {
+		for (let i = 0; i < 2048; i++) {
 			const x = scene.box.minX + Math.random() * (scene.box.maxX - scene.box.minX);
 			const y = scene.box.minY + Math.random() * (scene.box.maxY - scene.box.minY);
 			const radius = 20 + 50 * Math.random();
@@ -48,7 +48,7 @@
 		for (let i = 0; i < generators.length * 4; i++) {
 			const x = scene.box.minX + Math.random() * (scene.box.maxX - scene.box.minX);
 			const y = scene.box.minY + Math.random() * (scene.box.maxY - scene.box.minY);
-			const radius = (20 + 50 * Math.random()) * 25 / 4;
+			const radius = (20 + 50 * Math.random()) * 25;
 			const entity = new Dynastrike.Entity(x, y, radius, generators[i % generators.length]());
 			entity.isStatic = true;
 			scene.addEntity(entity);
@@ -96,15 +96,22 @@
 		}
 		let cameraX = 0;
 		let cameraY = 0;
+		let cameraRenderRatio = 0;
+		let cameraRatio = 0;
 		let draggingEntity = null;
 		let dragOffset = { x: 0, y: 0 };
 		canvasElement.oncontextmenu = () => false;
+		canvasElement.addEventListener("wheel", function (event) {
+			cameraRatio = Math.max(-2, Math.min(6, cameraRatio + (event.deltaY > 0 ? 0.2 : -0.2)));
+			event.preventDefault();
+		});
 		canvasElement.addEventListener("mousedown", function (event) {
 			const boundingRectangle = canvasElement.getBoundingClientRect();
 			const mouseX = event.clientX - boundingRectangle.left;
 			const mouseY = event.clientY - boundingRectangle.top;
-			const worldX = mouseX - canvasElement.width / 2 + cameraX;
-			const worldY = mouseY - canvasElement.height / 2 + cameraY;
+			const zoomFactor = Math.pow(2, cameraRenderRatio);
+			const worldX = (mouseX - canvasElement.width / 2) * zoomFactor + cameraX;
+			const worldY = (mouseY - canvasElement.height / 2) * zoomFactor + cameraY;
 			const candidates = scene.quadTree.query({ minX: worldX, minY: worldY, maxX: worldX, maxY: worldY });
 			let closestEntity = null;
 			let closestDistance = Infinity;
@@ -132,8 +139,9 @@
 				const boundingRectangle = canvasElement.getBoundingClientRect();
 				const mouseX = event.clientX - boundingRectangle.left;
 				const mouseY = event.clientY - boundingRectangle.top;
-				const worldX = mouseX - canvasElement.width / 2 + cameraX;
-				const worldY = mouseY - canvasElement.height / 2 + cameraY;
+				const zoomFactor = Math.pow(2, cameraRenderRatio);
+				const worldX = (mouseX - canvasElement.width / 2) * zoomFactor + cameraX;
+				const worldY = (mouseY - canvasElement.height / 2) * zoomFactor + cameraY;
 				draggingEntity.moveBy((worldX - dragOffset.x) - draggingEntity.positionX, (worldY - dragOffset.y) - draggingEntity.positionY);
 				draggingEntity.clearForces();
 			}
@@ -163,7 +171,7 @@
 			mixColorCache.set(key, result);
 			return result;
 		}
-		const gridOffscreenCanvas = new OffscreenCanvas(256, 256);
+		const gridOffscreenCanvas = new OffscreenCanvas(512, 512);
 		const gridOffscreenCtx = gridOffscreenCanvas.getContext("2d");
 		gridOffscreenCtx.clearRect(0, 0, gridOffscreenCanvas.width, gridOffscreenCanvas.height);
 		gridOffscreenCtx.strokeStyle = "#506020";
@@ -181,10 +189,11 @@
 			gridOffscreenCtx.stroke();
 		}
 		function drawBackground() {
-			const viewMinX = cameraX - canvasElement.width / 2;
-			const viewMinY = cameraY - canvasElement.height / 2;
-			const viewMaxX = cameraX + canvasElement.width / 2;
-			const viewMaxY = cameraY + canvasElement.height / 2;
+			const zoomFactor = Math.pow(2, cameraRenderRatio);
+			const viewMinX = cameraX - (canvasElement.width / 2) * zoomFactor;
+			const viewMinY = cameraY - (canvasElement.height / 2) * zoomFactor;
+			const viewMaxX = cameraX + (canvasElement.width / 2) * zoomFactor;
+			const viewMaxY = cameraY + (canvasElement.height / 2) * zoomFactor;
 			const backgroundMinX = Math.max(scene.box.minX, viewMinX);
 			const backgroundMinY = Math.max(scene.box.minY, viewMinY);
 			const backgroundMaxX = Math.min(scene.box.maxX, viewMaxX);
@@ -197,11 +206,12 @@
 		}
 		const colors = ["#AAAA00", "#202020", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
 		function drawEntities() {
+			const zoomFactor = Math.pow(2, cameraRenderRatio);
 			const viewEntities = scene.quadTree.query({
-				minX: cameraX - canvasElement.width / 2,
-				minY: cameraY - canvasElement.height / 2,
-				maxX: cameraX + canvasElement.width / 2,
-				maxY: cameraY + canvasElement.height / 2
+				minX: cameraX - (canvasElement.width / 2) * zoomFactor,
+				minY: cameraY - (canvasElement.height / 2) * zoomFactor,
+				maxX: cameraX + (canvasElement.width / 2) * zoomFactor,
+				maxY: cameraY + (canvasElement.height / 2) * zoomFactor
 			});
 			for (const entity of viewEntities) {
 				const color = colors[entity.index % colors.length];
@@ -235,11 +245,13 @@
 			let renderTime = performance.now();
 			cameraX = cameraX + (playerEntity.positionX - cameraX) * 0.05;
 			cameraY = cameraY + (playerEntity.positionY - cameraY) * 0.05;
+			cameraRenderRatio = cameraRenderRatio + (cameraRatio - cameraRenderRatio) * 0.1;
 			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 			ctx.fillStyle = "#506020";
 			ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
 			ctx.save();
-			ctx.translate(canvasElement.width / 2 - cameraX, canvasElement.height / 2 - cameraY);
+			const zoomFactor = Math.pow(2, cameraRenderRatio);
+			ctx.setTransform(1 / zoomFactor, 0, 0, 1 / zoomFactor, canvasElement.width / 2 - cameraX / zoomFactor, canvasElement.height / 2 - cameraY / zoomFactor);
 			drawBackground();
 			drawEntities();
 			ctx.restore();
