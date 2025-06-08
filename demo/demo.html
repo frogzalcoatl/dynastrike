@@ -39,7 +39,7 @@
 			//() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * random.next().value)),
 			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * random.next().value))
 		]
-		for (let i = 0; i < 1000; i++) {
+		for (let i = 0; i < 25; i++) {
 			const x = scene.minX + random.next().value * (scene.maxX - scene.minX);
 			const y = scene.minY + random.next().value * (scene.maxY - scene.minY);
 			const radius = 20 + 50 * random.next().value;
@@ -47,8 +47,12 @@
 			scene.addEntity(entity);
 			entity.angle = Math.PI * 2 * random.next().value;
 		}
-		let playerEntity = new Dynastrike.Entity(-12.5, 0, 5000, [-30, -1, 30, -1, 30, 1, -30, 1]);
+		let playerEntity = new Dynastrike.Entity(-12.5, 0, 100);
 		playerEntity.mass = 1000;
+		const otherEntity = new Dynastrike.Entity(0, 0, 100, [-16384 - 10, -16384 - 10, -16384 - 10, 0, 0, -16384 - 10], false);
+		otherEntity.isStatic = true;
+		otherEntity.bigFuckinAssTriangle = true;
+		scene.addEntity(otherEntity);
 		scene.addEntity(playerEntity);
 		for (let i = 0; i < generators.length * 4; i++) {
 			const x = scene.minX + random.next().value * (scene.maxX - scene.minX);
@@ -219,7 +223,7 @@
 			const viewEntities = scene.query(cameraX - (canvasElement.width / 2) * zoomFactor, cameraY - (canvasElement.height / 2) * zoomFactor, cameraX + (canvasElement.width / 2) * zoomFactor, cameraY + (canvasElement.height / 2) * zoomFactor);
 			for (const entity of viewEntities) {
 				const color = colors[entity.index % colors.length];
-				ctx.fillStyle = color;
+				ctx.fillStyle = entity.bigFuckinAssTriangle ? "#405010" : color;
 				//ctx.strokeStyle = mixColor(color, "#000000", 0.35);
 				ctx.beginPath();
 				if (entity.points === null) {
@@ -243,6 +247,7 @@
 				}
 			}
 		}
+		let animationInterval = null;
 		function animationFrame() {
 			playerInput();
 			let sceneUpdateTime = performance.now();
@@ -277,9 +282,8 @@
 			let y = 0;
 			ctx.fillText(`scene update: ${sceneUpdateTime.toFixed(1)}mspt (avg: ${avgScene.toFixed(1)})`, 10, y += 20);
 			ctx.fillText(`render: ${renderTime.toFixed(1)}mspt (avg: ${avgRender.toFixed(1)})`, 10, y += 20);
-			requestAnimationFrame(animationFrame);
 		}
-		requestAnimationFrame(animationFrame);
+		animationInterval = setInterval(animationFrame, 1000 / 144);
 	</script>
 </body>
 

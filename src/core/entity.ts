@@ -62,7 +62,8 @@ export class Entity {
 	private _inertiaDirty: boolean = true;
 	private _inertia: number = 1;
 	private _radius: number = 1;
-	public constructor(positionX: number, positionY: number, radius: number, points: number[] | null = null) {
+	private _pointCount: number;
+	public constructor(positionX: number, positionY: number, radius: number, points: number[] | null = null, scaleToEntity: boolean = true) {
 		this._positionX = positionX;
 		this._positionY = positionY;
 		this._radius = radius;
@@ -71,12 +72,22 @@ export class Entity {
 			this.minY = this._positionY - radius;
 			this.maxX = this._positionX + radius;
 			this.maxY = this._positionY + radius;
+			this._pointCount = 0;
 		} else {
-			this.points = [];
-			const circle: Circle = computeMEC(points.slice());
-			const factor: number = circle.radius < 1e-9 ? 0 : this._radius / circle.radius;
-			for (let i: number = 0; i < points.length; i += 2) {
-				this.points.push(this._positionX + (points[i] - circle.x) * factor, this._positionY + (points[i + 1] - circle.y) * factor);
+			this._pointCount = points.length;
+			if (scaleToEntity) {
+				this.points = [];
+				const circle: Circle = computeMEC(points.slice());
+				const factor: number = this._radius / circle.radius;
+				for (let i: number = 0; i < this._pointCount; i += 2) {
+					this.points.push(this._positionX + (points[i] - circle.x) * factor, this._positionY + (points[i + 1] - circle.y) * factor);
+				}
+			} else {
+				this.points = points.slice();
+				const circle = computeMEC(points.slice());
+				this._positionX = circle.x;
+				this._positionY = circle.y;
+				this._radius = circle.radius;
 			}
 			this.updateBox();
 		}
@@ -94,7 +105,7 @@ export class Entity {
 		if (this.points === null) {
 			return;
 		}
-		for (let i: number = 0; i < this.points.length; i += 2) {
+		for (let i: number = 0; i < this._pointCount; i += 2) {
 			this.points[i] += distance;
 		}
 	}
@@ -111,7 +122,7 @@ export class Entity {
 		if (this.points === null) {
 			return;
 		}
-		for (let i: number = 1; i < this.points.length; i += 2) {
+		for (let i: number = 1; i < this._pointCount; i += 2) {
 			this.points[i] += distance;
 		}
 	}
@@ -132,7 +143,7 @@ export class Entity {
 		}
 		const cos: number = Math.cos(delta);
 		const sin: number = Math.sin(delta);
-		for (let i = 0; i < this.points.length; i += 2) {
+		for (let i = 0; i < this._pointCount; i += 2) {
 			const relativeX: number = this.points[i] - this._positionX;
 			const relativeY: number = this.points[i + 1] - this._positionY;
 			this.points[i] = this._positionX + relativeX * cos - relativeY * sin;
@@ -166,7 +177,7 @@ export class Entity {
 		}
 		const factor = radius / this._radius;
 		this._radius = radius;
-		for (let i: number = 0; i < this.points.length; i += 2) {
+		for (let i: number = 0; i < this._pointCount; i += 2) {
 			this.points[i] = this._positionX + (this.points[i] - this._positionX) * factor;
 			this.points[i + 1] = this._positionY + (this.points[i + 1] - this._positionY) * factor;
 		}
@@ -191,7 +202,7 @@ export class Entity {
 			this.minY = this.points[1];
 			this.maxX = this.points[0];
 			this.maxY = this.points[1];
-			for (let i: number = 2; i < this.points.length; i += 2) {
+			for (let i: number = 2; i < this._pointCount; i += 2) {
 				const pointX: number = this.points[i];
 				const pointY: number = this.points[i + 1];
 				if (this.minX > pointX) {
@@ -217,7 +228,7 @@ export class Entity {
 		}
 		let area2Sum: number = 0;
 		let momentumSum: number = 0;
-		for (let i: number = 0, j: number = this.points.length - 2; i < this.points.length; j = i, i += 2) {
+		for (let i: number = 0, j: number = this._pointCount - 2; i < this._pointCount; j = i, i += 2) {
 			const currentPointX: number = this.points[i] - this._positionX;
 			const currentPointY: number = this.points[i + 1] - this._positionY;
 			const previousPointX: number = this.points[j] - this._positionX;
@@ -240,7 +251,7 @@ export class Entity {
 		if (this.points === null) {
 			return;
 		}
-		for (let i = 0; i < this.points.length; i += 2) {
+		for (let i = 0; i < this._pointCount; i += 2) {
 			this.points[i] += distanceX;
 			this.points[i + 1] += distanceY;
 		}
@@ -313,18 +324,18 @@ export class Entity {
 		}
 	}
 
-	public update(deltaTime: number): void {
+	public update(): void {
 		if (Math.abs(this.velocityX) > 1e-3) {
-			this.positionX += this.velocityX * deltaTime;
-			this.velocityX *= Math.pow(this.linearDampingFactor, deltaTime);
+			this.positionX += this.velocityX;
+			this.velocityX *= this.linearDampingFactor;
 		}
 		if (Math.abs(this.velocityY) > 1e-3) {
-			this.positionY += this.velocityY * deltaTime;
-			this.velocityY *= Math.pow(this.linearDampingFactor, deltaTime);
+			this.positionY += this.velocityY;
+			this.velocityY *= this.linearDampingFactor;
 		}
 		if (Math.abs(this.angularVelocity) > 1e-5) {
-			this.angle += this.angularVelocity * deltaTime;
-			this.angularVelocity *= Math.pow(this.angularDampingFactor, deltaTime);
+			this.angle += this.angularVelocity;
+			this.angularVelocity *= this.angularDampingFactor;
 		}
 	}
 }
