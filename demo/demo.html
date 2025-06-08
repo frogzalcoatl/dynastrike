@@ -48,7 +48,7 @@
 			entity.angle = Math.PI * 2 * random.next().value;
 		}
 		let playerEntity = new Dynastrike.Entity(-12.5, 0, 100);
-		playerEntity.mass = 1000;
+		playerEntity.isStatic = true;
 		const otherEntity = new Dynastrike.Entity(0, 0, 100, [-16384 - 10, -16384 - 10, -16384 - 10, 0, 0, -16384 - 10], false);
 		otherEntity.isStatic = true;
 		otherEntity.bigFuckinAssTriangle = true;
@@ -132,7 +132,7 @@
 				const distanceX = worldX - entity.positionX;
 				const distanceY = worldY - entity.positionY;
 				const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-				if (distance <= entity.radius && distance < closestDistance) {
+				if (distance <= entity.radius && distance < closestDistance && entity.isPointInside(worldX, worldY)) {
 					closestEntity = entity;
 					closestDistance = distance;
 					dragOffset.x = distanceX;

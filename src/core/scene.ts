@@ -43,9 +43,13 @@ export class Scene {
 				}
 				processedCollisions.add(pairIndex);
 				Collision.collide(instance, other);
-				other.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
+				if (!other.isStatic) {
+					other.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
+				}
 			}
-			instance.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
+			if (!instance.isStatic) {
+				instance.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
+			}
 		}
 	}
 
