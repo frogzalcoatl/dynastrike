@@ -1,84 +1,101 @@
 import { Entity } from "../core/entity";
-import { boxesIntersect } from "../geometry/box";
-import { Box, QuadTreeChildren } from "../types";
 
 export class QuadTree {
-	public box: Box;
-	public level: number;
-	public children: QuadTreeChildren | null = null;
 	public entities: Entity[] = [];
-	constructor(box: Box, level: number) {
-		this.box = box;
+	public childTopLeft: QuadTree | null = null;
+	public childTopRight: QuadTree | null = null;
+	public childBottomLeft: QuadTree | null = null;
+	public childBottomRight: QuadTree | null = null;
+	public hasChildren: boolean = false;
+	public minX: number;
+	public minY: number;
+	public maxX: number;
+	public maxY: number;
+	public level: number;
+	constructor(minX: number, minY: number, maxX: number, maxY: number, level: number) {
+		this.minX = minX;
+		this.minY = minY;
+		this.maxX = maxX;
+		this.maxY = maxY;
 		this.level = level;
 	}
 
 	public split(): void {
-		const halfWidth: number = (this.box.maxX - this.box.minX) / 2;
-		const halfHeight: number = (this.box.maxY - this.box.minY) / 2;
-		const middleX: number = this.box.minX + halfWidth;
-		const middleY: number = this.box.minY + halfHeight;
+		const width: number = (this.minX + this.maxX) / 2;
+		const height: number = (this.minY + this.maxY) / 2;
 		const level: number = this.level - 1;
-		this.children = {
-			topLeft: new QuadTree({ minX: this.box.minX, minY: this.box.minY, maxX: middleX, maxY: middleY }, level),
-			topRight: new QuadTree({ minX: middleX, minY: this.box.minY, maxX: this.box.maxX, maxY: middleY }, level),
-			bottomLeft: new QuadTree({ minX: this.box.minX, minY: middleY, maxX: middleX, maxY: this.box.maxY }, level),
-			bottomRight: new QuadTree({ minX: middleX, minY: middleY, maxX: this.box.maxX, maxY: this.box.maxY }, level)
-		};
-		for (let i: number = 0, length = this.entities.length; i < length; i++) {
+		this.childTopLeft = new QuadTree(this.minX, this.minY, width, height, level);
+		this.childTopRight = new QuadTree(width, this.minY, this.maxX, height, level);
+		this.childBottomLeft = new QuadTree(this.minX, height, width, this.maxY, level);
+		this.childBottomRight = new QuadTree(width, height, this.maxX, this.maxY, level);
+		this.hasChildren = true;
+		const entitiesCount: number = this.entities.length;
+		for (let i = 0; i < entitiesCount; i++) {
 			this.insert(this.entities[i]);
 		}
-		this.entities = [];
 	}
 
 	public insert(entity: Entity): void {
-		if (this.children === null) {
-			this.entities.push(entity);
-			if (this.level !== 0 && this.entities.length > 10) {
-				this.split();
+		const minX: number = entity.minX;
+		const minY: number = entity.minY;
+		const maxX: number = entity.maxX;
+		const maxY: number = entity.maxY;
+		if (this.hasChildren) {
+			const tl: QuadTree = this.childTopLeft!;
+			const tr: QuadTree = this.childTopRight!;
+			const bl: QuadTree = this.childBottomLeft!;
+			const br: QuadTree = this.childBottomRight!;
+			if (maxX > tl.minX && minX < tl.maxX && maxY > tl.minY && minY < tl.maxY) {
+				tl.insert(entity);
+			}
+			if (maxX > tr.minX && minX < tr.maxX && maxY > tr.minY && minY < tr.maxY) {
+				tr.insert(entity);
+			}
+			if (maxX > bl.minX && minX < bl.maxX && maxY > bl.minY && minY < bl.maxY) {
+				bl.insert(entity);
+			}
+			if (maxX > br.minX && minX < br.maxX && maxY > br.minY && minY < br.maxY) {
+				br.insert(entity);
 			}
 		} else {
-			if (boxesIntersect(this.children.topLeft.box, entity.box)) {
-				this.children.topLeft.insert(entity);
-			}
-			if (boxesIntersect(this.children.topRight.box, entity.box)) {
-				this.children.topRight.insert(entity);
-			}
-			if (boxesIntersect(this.children.bottomLeft.box, entity.box)) {
-				this.children.bottomLeft.insert(entity);
-			}
-			if (boxesIntersect(this.children.bottomRight.box, entity.box)) {
-				this.children.bottomRight.insert(entity);
+			this.entities.push(entity);
+			if (this.level > 0 && this.entities.length > 10) {
+				this.split();
 			}
 		}
 	}
 
-	public query(box: Box, result: Set<Entity> = new Set<Entity>()): Set<Entity> {
-		if (this.children === null) {
-			for (let i: number = 0; i < this.entities.length; i++) {
-				const entity: Entity = this.entities[i];
-				if (boxesIntersect(entity.box, box)) {
+	public intersects(minX: number, minY: number, maxX: number, maxY: number): boolean {
+		return minX < this.maxX && maxX > this.minX && minY < this.maxY && maxY > this.minY;
+	}
+
+	public query(minX: number, minY: number, maxX: number, maxY: number, result: Set<Entity> = new Set()): Set<Entity> {
+		if (maxX <= this.minX || minX >= this.maxX || maxY <= this.minY || minY >= this.maxY) {
+			return result;
+		}
+		if (this.hasChildren) {
+			this.childTopLeft!.query(minX, minY, maxX, maxY, result);
+			this.childTopRight!.query(minX, minY, maxX, maxY, result);
+			this.childBottomLeft!.query(minX, minY, maxX, maxY, result);
+			this.childBottomRight!.query(minX, minY, maxX, maxY, result);
+		} else {
+			const entitiesCount: number = this.entities.length;
+			for (let i: number = 0; i < entitiesCount; i++) {
+				const entity = this.entities[i];
+				if (entity.minX < maxX && entity.maxX > minX && entity.minY < maxY && entity.maxY > minY) {
 					result.add(entity);
 				}
-			}
-		} else {
-			if (boxesIntersect(this.children.topLeft.box, box)) {
-				this.children.topLeft.query(box, result);
-			}
-			if (boxesIntersect(this.children.topRight.box, box)) {
-				this.children.topRight.query(box, result);
-			}
-			if (boxesIntersect(this.children.bottomLeft.box, box)) {
-				this.children.bottomLeft.query(box, result);
-			}
-			if (boxesIntersect(this.children.bottomRight.box, box)) {
-				this.children.bottomRight.query(box, result);
 			}
 		}
 		return result;
 	}
 
 	public clear(): void {
-		this.entities = [];
-		this.children = null;
+		this.childTopLeft = null;
+		this.childTopRight = null;
+		this.childBottomLeft = null;
+		this.childBottomRight = null;
+		this.hasChildren = false;
+		this.entities.length = 0;
 	}
 }

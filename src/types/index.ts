@@ -59,7 +59,7 @@ export interface SerializedEntity {
 	frictionCoefficient: number;
 	restitution: number;
 	linearDampingFactor: number;
-	angularDampeningFactor: number;
+	angularDampingFactor: number;
 }
 
 export interface IJoint {

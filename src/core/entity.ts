@@ -1,7 +1,6 @@
 import { computeMEC } from "../geometry/misc";
 import { isPointInPolygon } from "../geometry/polygon";
-import { QuadTree } from "../spatial/quadtree";
-import { Box, Circle, SerializedEntity } from "../types";
+import { Circle, SerializedEntity } from "../types";
 
 const TAU: number = Math.PI * 2;
 
@@ -23,7 +22,7 @@ export class Entity {
 			frictionCoefficient: entity.frictionCoefficient,
 			restitution: entity.restitution,
 			linearDampingFactor: entity.linearDampingFactor,
-			angularDampeningFactor: entity.angularDampingFactor,
+			angularDampingFactor: entity.angularDampingFactor,
 		};
 	}
 
@@ -38,7 +37,7 @@ export class Entity {
 		entity.frictionCoefficient = data.frictionCoefficient;
 		entity.restitution = data.restitution;
 		entity.linearDampingFactor = data.linearDampingFactor;
-		entity.angularDampingFactor = data.angularDampeningFactor;
+		entity.angularDampingFactor = data.angularDampingFactor;
 		return entity;
 	}
 
@@ -46,13 +45,15 @@ export class Entity {
 	public velocityY: number = 0;
 	public angularVelocity: number = 0;
 	public isStatic: boolean = false;
-	public box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+	public minX: number = 0;
+	public minY: number = 0;
+	public maxX: number = 0;
+	public maxY: number = 0;
 	public points: number[] | null = null;
 	public frictionCoefficient: number = 0.6;
 	public restitution: number = 0.4;
 	public linearDampingFactor: number = 0.9;
 	public angularDampingFactor: number = 0.9;
-	public quadTreeNodes: Set<QuadTree> = new Set<QuadTree>();
 	public readonly index: number = Entity.entityIndexTicker++;
 	private _positionX: number = 0;
 	private _positionY: number = 0;
@@ -66,10 +67,10 @@ export class Entity {
 		this._positionY = positionY;
 		this._radius = radius;
 		if (points === null) {
-			this.box.minX = this._positionX - radius;
-			this.box.minY = this._positionY - radius;
-			this.box.maxX = this._positionX + radius;
-			this.box.maxY = this._positionY + radius;
+			this.minX = this._positionX - radius;
+			this.minY = this._positionY - radius;
+			this.maxX = this._positionX + radius;
+			this.maxY = this._positionY + radius;
 		} else {
 			this.points = [];
 			const circle: Circle = computeMEC(points.slice());
@@ -88,8 +89,8 @@ export class Entity {
 	public set positionX(x: number) {
 		const distance: number = x - this._positionX;
 		this._positionX = x;
-		this.box.minX += distance;
-		this.box.maxX += distance;
+		this.minX += distance;
+		this.maxX += distance;
 		if (this.points === null) {
 			return;
 		}
@@ -105,8 +106,8 @@ export class Entity {
 	public set positionY(y: number) {
 		const distance: number = y - this._positionY;
 		this._positionY = y;
-		this.box.minY += distance;
-		this.box.maxY += distance;
+		this.minY += distance;
+		this.maxY += distance;
 		if (this.points === null) {
 			return;
 		}
@@ -157,10 +158,10 @@ export class Entity {
 		this._inertiaDirty = true;
 		if (this.points === null) {
 			this._radius = radius;
-			this.box.minX = this._positionX - radius;
-			this.box.minY = this._positionY - radius;
-			this.box.maxX = this._positionX + radius;
-			this.box.maxY = this._positionY + radius;
+			this.minX = this._positionX - radius;
+			this.minY = this._positionY - radius;
+			this.maxX = this._positionX + radius;
+			this.maxY = this._positionY + radius;
 			return;
 		}
 		const factor = radius / this._radius;
@@ -181,29 +182,29 @@ export class Entity {
 
 	private updateBox(): void {
 		if (this.points === null) {
-			this.box.minX = this._positionX - this._radius;
-			this.box.minY = this._positionY - this._radius;
-			this.box.maxX = this._positionX + this._radius;
-			this.box.maxY = this._positionY + this._radius;
+			this.minX = this._positionX - this._radius;
+			this.minY = this._positionY - this._radius;
+			this.maxX = this._positionX + this._radius;
+			this.maxY = this._positionY + this._radius;
 		} else {
-			this.box.minX = this.points[0];
-			this.box.minY = this.points[1];
-			this.box.maxX = this.points[0];
-			this.box.maxY = this.points[1];
+			this.minX = this.points[0];
+			this.minY = this.points[1];
+			this.maxX = this.points[0];
+			this.maxY = this.points[1];
 			for (let i: number = 2; i < this.points.length; i += 2) {
 				const pointX: number = this.points[i];
 				const pointY: number = this.points[i + 1];
-				if (this.box.minX > pointX) {
-					this.box.minX = pointX;
+				if (this.minX > pointX) {
+					this.minX = pointX;
 				}
-				if (this.box.minY > pointY) {
-					this.box.minY = pointY;
+				if (this.minY > pointY) {
+					this.minY = pointY;
 				}
-				if (this.box.maxX < pointX) {
-					this.box.maxX = pointX;
+				if (this.maxX < pointX) {
+					this.maxX = pointX;
 				}
-				if (this.box.maxY < pointY) {
-					this.box.maxY = pointY;
+				if (this.maxY < pointY) {
+					this.maxY = pointY;
 				}
 			}
 		}
@@ -232,10 +233,10 @@ export class Entity {
 	public moveBy(distanceX: number, distanceY: number): void {
 		this._positionX += distanceX;
 		this._positionY += distanceY;
-		this.box.minX += distanceX;
-		this.box.maxX += distanceX;
-		this.box.minY += distanceY;
-		this.box.maxY += distanceY;
+		this.minX += distanceX;
+		this.maxX += distanceX;
+		this.minY += distanceY;
+		this.maxY += distanceY;
 		if (this.points === null) {
 			return;
 		}
@@ -277,6 +278,10 @@ export class Entity {
 		cloneEntity.angle = this.angle;
 		cloneEntity.angularVelocity = this.angularVelocity;
 		cloneEntity.isStatic = this.isStatic;
+		cloneEntity.frictionCoefficient = this.frictionCoefficient;
+		cloneEntity.restitution = this.restitution;
+		cloneEntity.linearDampingFactor = this.linearDampingFactor;
+		cloneEntity.angularDampingFactor = this.angularDampingFactor;
 		cloneEntity._mass = this._mass;
 		cloneEntity._inertiaDirty = this._inertiaDirty;
 		cloneEntity._inertia = this._inertia;
@@ -284,26 +289,26 @@ export class Entity {
 			return cloneEntity;
 		}
 		cloneEntity.points = this.points.slice();
-		cloneEntity.box.minX = this.box.minX;
-		cloneEntity.box.minY = this.box.minY;
-		cloneEntity.box.maxX = this.box.maxX;
-		cloneEntity.box.maxY = this.box.maxY;
+		cloneEntity.minX = this.minX;
+		cloneEntity.minY = this.minY;
+		cloneEntity.maxX = this.maxX;
+		cloneEntity.maxY = this.maxY;
 		return cloneEntity;
 	}
 
-	public earthlyShackles(box: Box): void {
-		if (this.positionX < box.minX) {
-			this.positionX = box.minX;
+	public earthlyShackles(minX: number, minY: number, maxX: number, maxY: number): void {
+		if (this.positionX < minX) {
+			this.positionX = minX;
 			this.velocityX *= -this.restitution;
-		} else if (this.positionX > box.maxX) {
-			this.positionX = box.maxX;
+		} else if (this.positionX > maxX) {
+			this.positionX = maxX;
 			this.velocityX *= -this.restitution;
 		}
-		if (this.positionY < box.minY) {
-			this.positionY = box.minY;
+		if (this.positionY < minY) {
+			this.positionY = minY;
 			this.velocityY *= -this.restitution;
-		} else if (this.positionY > box.maxY) {
-			this.positionY = box.maxY;
+		} else if (this.positionY > maxY) {
+			this.positionY = maxY;
 			this.velocityY *= -this.restitution;
 		}
 	}
