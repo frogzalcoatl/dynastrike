@@ -1,15 +1,20 @@
 import { Collision } from "../physics/collide";
 import { QuadTree } from "../spatial/quadtree";
-import { Box } from "../types";
 import { Entity } from "./entity";
 
 export class Scene {
-	public box: Box;
-	public grid: QuadTree;
+	private minX: number;
+	private minY: number;
+	private maxX: number;
+	private maxY: number;
+	private grid: QuadTree;
 	public entities: Set<Entity> = new Set<Entity>();
-	constructor(box: Box, topLevel: number) {
-		this.box = box;
-		this.grid = new QuadTree(this.box, topLevel);
+	constructor(minX: number, minY: number, maxX: number, maxY: number, topLevel: number) {
+		this.minX = minX;
+		this.minY = minY;
+		this.maxX = maxX;
+		this.maxY = maxY;
+		this.grid = new QuadTree(minX, minY, maxX, maxY, topLevel);
 	}
 
 	public addEntity(entity: Entity): void {
@@ -20,8 +25,8 @@ export class Scene {
 		this.entities.delete(entity);
 	}
 
-	public query(box: Box): Set<Entity> {
-		return this.grid.query(box);
+	public query(minX: number, minY: number, maxX: number, maxY: number): Set<Entity> {
+		return this.grid.query(minX, minY, maxX, maxY);
 	}
 
 	public update() {
@@ -33,7 +38,7 @@ export class Scene {
 		const processedCollisions: Set<number> = new Set<number>();
 		for (const instance of this.entities.values()) {
 			instance.update(deltaTime);
-			const potentialColliders: SetIterator<Entity> = this.grid.query(instance.box).values();
+			const potentialColliders: SetIterator<Entity> = this.grid.query(instance.minX, instance.minY, instance.maxX, instance.maxY).values();
 			this.grid.insert(instance);
 			for (const other of potentialColliders) {
 				const pairIndex: number = this.getPairIndex(instance.index, other.index);
@@ -42,9 +47,9 @@ export class Scene {
 				}
 				processedCollisions.add(pairIndex);
 				Collision.collide(instance, other);
-				other.earthlyShackles(this.box);
+				other.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
 			}
-			instance.earthlyShackles(this.box);
+			instance.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
 		}
 	}
 

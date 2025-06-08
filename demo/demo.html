@@ -23,12 +23,7 @@
 <body>
 	<script src="../dist/dynastrike.global.js"></script>
 	<script>
-		const scene = new Dynastrike.Scene({
-			minX: -16384,
-			minY: -16384,
-			maxX: 16384,
-			maxY: 16384
-		}, 16);
+		const scene = new Dynastrike.Scene(-16384, -16384, 16384, 16384, 16);
 		const random = (function* seededRandom(seed) {
 			let t = seed;
 			while (true) {
@@ -44,9 +39,9 @@
 			//() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * random.next().value)),
 			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * random.next().value))
 		]
-		for (let i = 0; i < 4096; i++) {
-			const x = scene.box.minX + random.next().value * (scene.box.maxX - scene.box.minX);
-			const y = scene.box.minY + random.next().value * (scene.box.maxY - scene.box.minY);
+		for (let i = 0; i < 1000; i++) {
+			const x = scene.minX + random.next().value * (scene.maxX - scene.minX);
+			const y = scene.minY + random.next().value * (scene.maxY - scene.minY);
 			const radius = 20 + 50 * random.next().value;
 			const entity = new Dynastrike.Entity(x, y, radius, generators[Math.floor(generators.length * random.next().value * random.next().value)]());
 			scene.addEntity(entity);
@@ -56,8 +51,8 @@
 		playerEntity.mass = 1000;
 		scene.addEntity(playerEntity);
 		for (let i = 0; i < generators.length * 4; i++) {
-			const x = scene.box.minX + random.next().value * (scene.box.maxX - scene.box.minX);
-			const y = scene.box.minY + random.next().value * (scene.box.maxY - scene.box.minY);
+			const x = scene.minX + random.next().value * (scene.maxX - scene.minX);
+			const y = scene.minY + random.next().value * (scene.maxY - scene.minY);
 			const radius = (20 + 50 * random.next().value) * 25;
 			const entity = new Dynastrike.Entity(x, y, radius, generators[i % generators.length]());
 			entity.mass = 500;
@@ -126,7 +121,7 @@
 			const zoomFactor = Math.pow(2, cameraRenderRatio);
 			const worldX = (mouseX - canvasElement.width / 2) * zoomFactor + cameraX;
 			const worldY = (mouseY - canvasElement.height / 2) * zoomFactor + cameraY;
-			const candidates = scene.query({ minX: worldX, minY: worldY, maxX: worldX, maxY: worldY });
+			const candidates = scene.query(worldX, worldY, worldX, worldY);
 			let closestEntity = null;
 			let closestDistance = Infinity;
 			for (const entity of candidates) {
@@ -208,10 +203,10 @@
 			const viewMinY = cameraY - (canvasElement.height / 2) * zoomFactor;
 			const viewMaxX = cameraX + (canvasElement.width / 2) * zoomFactor;
 			const viewMaxY = cameraY + (canvasElement.height / 2) * zoomFactor;
-			const backgroundMinX = Math.max(scene.box.minX, viewMinX);
-			const backgroundMinY = Math.max(scene.box.minY, viewMinY);
-			const backgroundMaxX = Math.min(scene.box.maxX, viewMaxX);
-			const backgroundMaxY = Math.min(scene.box.maxY, viewMaxY);
+			const backgroundMinX = Math.max(scene.minX, viewMinX);
+			const backgroundMinY = Math.max(scene.minY, viewMinY);
+			const backgroundMaxX = Math.min(scene.maxX, viewMaxX);
+			const backgroundMaxY = Math.min(scene.maxY, viewMaxY);
 			ctx.fillStyle = "#708040";
 			ctx.fillRect(backgroundMinX, backgroundMinY, backgroundMaxX - backgroundMinX, backgroundMaxY - backgroundMinY);
 			const pattern = ctx.createPattern(gridOffscreenCanvas, "repeat");
@@ -221,12 +216,7 @@
 		const colors = ["#AAAA00", "#202020", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
 		function drawEntities() {
 			const zoomFactor = Math.pow(2, cameraRenderRatio);
-			const viewEntities = scene.query({
-				minX: cameraX - (canvasElement.width / 2) * zoomFactor,
-				minY: cameraY - (canvasElement.height / 2) * zoomFactor,
-				maxX: cameraX + (canvasElement.width / 2) * zoomFactor,
-				maxY: cameraY + (canvasElement.height / 2) * zoomFactor
-			});
+			const viewEntities = scene.query(cameraX - (canvasElement.width / 2) * zoomFactor, cameraY - (canvasElement.height / 2) * zoomFactor, cameraX + (canvasElement.width / 2) * zoomFactor, cameraY + (canvasElement.height / 2) * zoomFactor);
 			for (const entity of viewEntities) {
 				const color = colors[entity.index % colors.length];
 				ctx.fillStyle = color;
@@ -272,12 +262,21 @@
 			drawEntities();
 			ctx.restore();
 			renderTime = performance.now() - renderTime;
+			// Track and show averages
+			if (!window._avg) window._avg = { scene: [], render: [] };
+			const avg = window._avg;
+			avg.scene.push(sceneUpdateTime);
+			avg.render.push(renderTime);
+			if (avg.scene.length > 60) avg.scene.shift();
+			if (avg.render.length > 60) avg.render.shift();
+			const avgScene = avg.scene.reduce((a, b) => a + b, 0) / avg.scene.length;
+			const avgRender = avg.render.reduce((a, b) => a + b, 0) / avg.render.length;
 			ctx.fillStyle = "#ffffff";
 			ctx.font = "16px monospace";
 			ctx.textAlign = "left";
 			let y = 0;
-			ctx.fillText(`scene update: ${sceneUpdateTime.toFixed(1)}mspt`, 10, y += 20);
-			ctx.fillText(`render: ${renderTime.toFixed(1)}mspt`, 10, y += 20);
+			ctx.fillText(`scene update: ${sceneUpdateTime.toFixed(1)}mspt (avg: ${avgScene.toFixed(1)})`, 10, y += 20);
+			ctx.fillText(`render: ${renderTime.toFixed(1)}mspt (avg: ${avgRender.toFixed(1)})`, 10, y += 20);
 			requestAnimationFrame(animationFrame);
 		}
 		requestAnimationFrame(animationFrame);

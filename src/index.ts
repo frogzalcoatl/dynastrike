@@ -1,6 +1,5 @@
 export * from "./core/entity";
 export * from "./core/scene";
-export * from "./geometry/box";
 export * from "./geometry/misc";
 export * from "./geometry/polygon";
 export * from "./physics/collide";
