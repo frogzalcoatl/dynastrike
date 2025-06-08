@@ -1,10 +1,5 @@
 import { QuadTree } from "../spatial/quadtree";
 
-export interface Vector2 {
-	x: number;
-	y: number;
-}
-
 export type BoundaryBuffer = number[];
 
 export interface Circle {
@@ -48,4 +43,25 @@ export interface ContactPoints {
 	x: number;
 	y: number;
 	count: number
+}
+
+export interface SerializedEntity {
+	positionX: number;
+	positionY: number;
+	velocityX: number;
+	velocityY: number;
+	radius: number;
+	points: number[] | null;
+	angle: number;
+	angularVelocity: number;
+	mass: number;
+	isStatic: boolean;
+	frictionCoefficient: number;
+	restitution: number;
+	linearDampingFactor: number;
+	angularDampeningFactor: number;
+}
+
+export interface IJoint {
+	update(deltaTime: number): void;
 }

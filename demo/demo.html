@@ -28,38 +28,48 @@
 			minY: -16384,
 			maxX: 16384,
 			maxY: 16384
-		});
+		}, 16);
+		const random = (function* seededRandom(seed) {
+			let t = seed;
+			while (true) {
+				t += 0x6D2B79F5;
+				let r = Math.imul(t ^ t >>> 15, t | 1);
+				r ^= r + Math.imul(r ^ r >>> 7, r | 61);
+				yield ((r ^ r >>> 14) >>> 0) / 4294967296;
+			}
+		})(1);
 		const generators = [
 			() => null,
-			() => Dynastrike.generatePolygon(0, 0, 1, 3 + Math.floor(4 * Math.random())),
-			//() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * Math.random())),
-			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * Math.random()))
+			() => Dynastrike.generatePolygon(0, 0, 1, 3 + Math.floor(4 * random.next().value)),
+			//() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * random.next().value)),
+			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * random.next().value))
 		]
-		for (let i = 0; i < 2048; i++) {
-			const x = scene.box.minX + Math.random() * (scene.box.maxX - scene.box.minX);
-			const y = scene.box.minY + Math.random() * (scene.box.maxY - scene.box.minY);
-			const radius = 20 + 50 * Math.random();
-			const entity = new Dynastrike.Entity(x, y, radius, generators[Math.floor(generators.length * Math.random() * Math.random())]());
+		for (let i = 0; i < 4096; i++) {
+			const x = scene.box.minX + random.next().value * (scene.box.maxX - scene.box.minX);
+			const y = scene.box.minY + random.next().value * (scene.box.maxY - scene.box.minY);
+			const radius = 20 + 50 * random.next().value;
+			const entity = new Dynastrike.Entity(x, y, radius, generators[Math.floor(generators.length * random.next().value * random.next().value)]());
 			scene.addEntity(entity);
-			entity.angle = Math.PI * 2 * Math.random();
+			entity.angle = Math.PI * 2 * random.next().value;
 		}
-		let playerEntity = new Dynastrike.Entity(0, 0, 100, Dynastrike.generatePolygon(0, 0, 1, 3));
-		playerEntity.isStatic = false;
-		for (let i = 0; i < generators.length * 4; i++) {
-			const x = scene.box.minX + Math.random() * (scene.box.maxX - scene.box.minX);
-			const y = scene.box.minY + Math.random() * (scene.box.maxY - scene.box.minY);
-			const radius = (20 + 50 * Math.random()) * 25;
-			const entity = new Dynastrike.Entity(x, y, radius, generators[i % generators.length]());
-			entity.isStatic = true;
-			scene.addEntity(entity);
-		}
+		let playerEntity = new Dynastrike.Entity(-12.5, 0, 5000, [-30, -1, 30, -1, 30, 1, -30, 1]);
+		playerEntity.mass = 1000;
 		scene.addEntity(playerEntity);
+		for (let i = 0; i < generators.length * 4; i++) {
+			const x = scene.box.minX + random.next().value * (scene.box.maxX - scene.box.minX);
+			const y = scene.box.minY + random.next().value * (scene.box.maxY - scene.box.minY);
+			const radius = (20 + 50 * random.next().value) * 25;
+			const entity = new Dynastrike.Entity(x, y, radius, generators[i % generators.length]());
+			entity.mass = 500;
+			scene.addEntity(entity);
+		}
 		const canvasElement = document.createElement("canvas");
 		document.body.appendChild(canvasElement);
 		const ctx = canvasElement.getContext("2d", { alpha: false, willReadFrequently: false, desynchronized: true });
 		function resizeEvent() {
 			canvasElement.width = window.innerWidth;
 			canvasElement.height = window.innerHeight;
+			ctx.imageSmoothingEnabled = true;
 		}
 		window.addEventListener("resize", () => resizeEvent());
 		resizeEvent();
@@ -70,6 +80,7 @@
 				case "KeyS": commands |= 2; break;
 				case "KeyA": commands |= 4; break;
 				case "KeyD": commands |= 8; break;
+				case "KeyK": commands ^= 16; break;
 			}
 		});
 		addEventListener("keyup", function (event) {
@@ -82,16 +93,19 @@
 		});
 		function playerInput() {
 			if (commands & 1) {
-				playerEntity.positionalVelocity.y -= 0.25;
+				playerEntity.velocityY -= 2;
 			}
 			if (commands & 2) {
-				playerEntity.positionalVelocity.y += 0.25;
+				playerEntity.velocityY += 2;
 			}
 			if (commands & 4) {
-				playerEntity.positionalVelocity.x -= 0.25;
+				playerEntity.velocityX -= 2;
 			}
 			if (commands & 8) {
-				playerEntity.positionalVelocity.x += 0.25;
+				playerEntity.velocityX += 2;
+			}
+			if (commands & 16) {
+				playerEntity.angularVelocity += 0.0025;
 			}
 		}
 		let cameraX = 0;
@@ -112,7 +126,7 @@
 			const zoomFactor = Math.pow(2, cameraRenderRatio);
 			const worldX = (mouseX - canvasElement.width / 2) * zoomFactor + cameraX;
 			const worldY = (mouseY - canvasElement.height / 2) * zoomFactor + cameraY;
-			const candidates = scene.quadTree.query({ minX: worldX, minY: worldY, maxX: worldX, maxY: worldY });
+			const candidates = scene.query({ minX: worldX, minY: worldY, maxX: worldX, maxY: worldY });
 			let closestEntity = null;
 			let closestDistance = Infinity;
 			for (const entity of candidates) {
@@ -171,22 +185,22 @@
 			mixColorCache.set(key, result);
 			return result;
 		}
-		const gridOffscreenCanvas = new OffscreenCanvas(512, 512);
-		const gridOffscreenCtx = gridOffscreenCanvas.getContext("2d");
-		gridOffscreenCtx.clearRect(0, 0, gridOffscreenCanvas.width, gridOffscreenCanvas.height);
-		gridOffscreenCtx.strokeStyle = "#506020";
-		gridOffscreenCtx.lineWidth = 1;
+		const gridOffscreenCanvas = new OffscreenCanvas(1024, 1024);
+		const gctx = gridOffscreenCanvas.getContext("2d");
+		gctx.clearRect(0, 0, gridOffscreenCanvas.width, gridOffscreenCanvas.height);
+		gctx.strokeStyle = "#405010";
+		gctx.lineWidth = 1;
 		for (let x = 0; x <= gridOffscreenCanvas.width; x += 32) {
-			gridOffscreenCtx.beginPath();
-			gridOffscreenCtx.moveTo(x, 0);
-			gridOffscreenCtx.lineTo(x, gridOffscreenCanvas.height);
-			gridOffscreenCtx.stroke();
+			gctx.beginPath();
+			gctx.moveTo(x, 0);
+			gctx.lineTo(x, gridOffscreenCanvas.height);
+			gctx.stroke();
 		}
 		for (let y = 0; y <= gridOffscreenCanvas.height; y += 32) {
-			gridOffscreenCtx.beginPath();
-			gridOffscreenCtx.moveTo(0, y);
-			gridOffscreenCtx.lineTo(gridOffscreenCanvas.width, y);
-			gridOffscreenCtx.stroke();
+			gctx.beginPath();
+			gctx.moveTo(0, y);
+			gctx.lineTo(gridOffscreenCanvas.width, y);
+			gctx.stroke();
 		}
 		function drawBackground() {
 			const zoomFactor = Math.pow(2, cameraRenderRatio);
@@ -207,7 +221,7 @@
 		const colors = ["#AAAA00", "#202020", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
 		function drawEntities() {
 			const zoomFactor = Math.pow(2, cameraRenderRatio);
-			const viewEntities = scene.quadTree.query({
+			const viewEntities = scene.query({
 				minX: cameraX - (canvasElement.width / 2) * zoomFactor,
 				minY: cameraY - (canvasElement.height / 2) * zoomFactor,
 				maxX: cameraX + (canvasElement.width / 2) * zoomFactor,
@@ -216,7 +230,7 @@
 			for (const entity of viewEntities) {
 				const color = colors[entity.index % colors.length];
 				ctx.fillStyle = color;
-				ctx.strokeStyle = mixColor(color, "#000000", 0.35);
+				//ctx.strokeStyle = mixColor(color, "#000000", 0.35);
 				ctx.beginPath();
 				if (entity.points === null) {
 					ctx.arc(entity.positionX, entity.positionY, entity.radius, 0, Math.PI * 2);
@@ -228,13 +242,15 @@
 				}
 				ctx.closePath();
 				ctx.fill();
-				ctx.strokeStyle = "#000000";
-				ctx.lineWidth = 0;
-				ctx.beginPath();
-				ctx.moveTo(entity.positionX, entity.positionY);
-				ctx.lineTo(entity.positionX + Math.cos(entity.angle) * entity.radius, entity.positionY + Math.sin(entity.angle) * entity.radius);
-				ctx.closePath();
-				ctx.stroke();
+				if (cameraRatio < 3) {
+					ctx.strokeStyle = "#000000";
+					ctx.lineWidth = 0;
+					ctx.beginPath();
+					ctx.moveTo(entity.positionX, entity.positionY);
+					ctx.lineTo(entity.positionX + Math.cos(entity.angle) * entity.radius, entity.positionY + Math.sin(entity.angle) * entity.radius);
+					ctx.closePath();
+					ctx.stroke();
+				}
 			}
 		}
 		function animationFrame() {
@@ -247,7 +263,7 @@
 			cameraY = cameraY + (playerEntity.positionY - cameraY) * 0.05;
 			cameraRenderRatio = cameraRenderRatio + (cameraRatio - cameraRenderRatio) * 0.1;
 			ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-			ctx.fillStyle = "#506020";
+			ctx.fillStyle = "#405010";
 			ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
 			ctx.save();
 			const zoomFactor = Math.pow(2, cameraRenderRatio);

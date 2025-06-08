@@ -21,10 +21,10 @@ export class Collision {
 		const relativeInstanceY: number = contactY - instance.positionY;
 		const relativeOtherX: number = contactX - other.positionX;
 		const relativeOtherY: number = contactY - other.positionY;
-		const instanceVelocityX: number = instance.positionalVelocity.x - instance.angularVelocity * relativeInstanceY;
-		const instanceVelocityY: number = instance.positionalVelocity.y + instance.angularVelocity * relativeInstanceX;
-		const otherVelocityX: number = other.positionalVelocity.x - other.angularVelocity * relativeOtherY;
-		const otherVelocityY: number = other.positionalVelocity.y + other.angularVelocity * relativeOtherX;
+		const instanceVelocityX: number = instance.velocityX - instance.angularVelocity * relativeInstanceY;
+		const instanceVelocityY: number = instance.velocityY + instance.angularVelocity * relativeInstanceX;
+		const otherVelocityX: number = other.velocityX - other.angularVelocity * relativeOtherY;
+		const otherVelocityY: number = other.velocityY + other.angularVelocity * relativeOtherX;
 		const relativeVelocityX: number = otherVelocityX - instanceVelocityX;
 		const relativeVelocityY: number = otherVelocityY - instanceVelocityY;
 		const velocityAlongNormal: number = relativeVelocityX * normalX + relativeVelocityY * normalY;
@@ -41,18 +41,21 @@ export class Collision {
 		if (impulseDenominator < 1e-9) {
 			return;
 		}
-		const restitution: number = Math.min(instance.restitution, other.restitution);
+		let restitution = Math.min(instance.restitution, other.restitution);
+		if (Math.abs(velocityAlongNormal) < 1e-2) {
+			restitution = 0;
+		}
 		const impulseMagnitude: number = -(1 + restitution) * velocityAlongNormal / impulseDenominator;
 		const impulseX: number = impulseMagnitude * normalX;
 		const impulseY: number = impulseMagnitude * normalY;
 		if (!instance.isStatic) {
-			instance.positionalVelocity.x -= impulseX * inverseInstanceMass;
-			instance.positionalVelocity.y -= impulseY * inverseInstanceMass;
+			instance.velocityX -= impulseX * inverseInstanceMass;
+			instance.velocityY -= impulseY * inverseInstanceMass;
 			instance.angularVelocity -= (relativeInstanceX * impulseY - relativeInstanceY * impulseX) * inverseInstanceInertia;
 		}
 		if (!other.isStatic) {
-			other.positionalVelocity.x += impulseX * inverseOtherMass;
-			other.positionalVelocity.y += impulseY * inverseOtherMass;
+			other.velocityX += impulseX * inverseOtherMass;
+			other.velocityY += impulseY * inverseOtherMass;
 			other.angularVelocity += (relativeOtherX * impulseY - relativeOtherY * impulseX) * inverseOtherInertia;
 		}
 		const tangentX: number = -normalY;
@@ -74,13 +77,13 @@ export class Collision {
 		const frictionX: number = frictionMagnitude * tangentX;
 		const frictionY: number = frictionMagnitude * tangentY;
 		if (!instance.isStatic) {
-			instance.positionalVelocity.x -= frictionX * inverseInstanceMass;
-			instance.positionalVelocity.y -= frictionY * inverseInstanceMass;
+			instance.velocityX -= frictionX * inverseInstanceMass;
+			instance.velocityY -= frictionY * inverseInstanceMass;
 			instance.angularVelocity -= (relativeInstanceX * frictionY - relativeInstanceY * frictionX) * inverseInstanceInertia;
 		}
 		if (!other.isStatic) {
-			other.positionalVelocity.x += frictionX * inverseOtherMass;
-			other.positionalVelocity.y += frictionY * inverseOtherMass;
+			other.velocityX += frictionX * inverseOtherMass;
+			other.velocityY += frictionY * inverseOtherMass;
 			other.angularVelocity += (relativeOtherX * frictionY - relativeOtherY * frictionX) * inverseOtherInertia;
 		}
 	}
@@ -94,8 +97,8 @@ export class Collision {
 			return false;
 		}
 		const distance: number = Math.sqrt(distanceSquared);
-		let normalX: number;
-		let normalY: number;
+		let normalX: number = 0;
+		let normalY: number = 0;
 		if (distance < 1e-9) {
 			normalX = 0;
 			normalY = 1;
