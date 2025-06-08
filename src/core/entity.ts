@@ -1,54 +1,93 @@
 import { computeMEC } from "../geometry/misc";
 import { isPointInPolygon } from "../geometry/polygon";
-import { Box, Circle, Vector2 } from "../types";
+import { QuadTree } from "../spatial/quadtree";
+import { Box, Circle, SerializedEntity } from "../types";
 
 const TAU: number = Math.PI * 2;
 
 export class Entity {
 	private static entityIndexTicker: number = 1;
-	private _position: Vector2 = { x: 0, y: 0 };
-	public positionalVelocity: Vector2 = { x: 0, y: 0 };
-	private _angle: number = 0;
+
+	public static serialize(entity: Entity): SerializedEntity {
+		return {
+			positionX: entity.positionX,
+			positionY: entity.positionY,
+			velocityX: entity.velocityX,
+			velocityY: entity.velocityY,
+			radius: entity.radius,
+			points: entity.points?.slice() ?? null,
+			angle: entity.angle,
+			angularVelocity: entity.angularVelocity,
+			mass: entity.mass,
+			isStatic: entity.isStatic,
+			frictionCoefficient: entity.frictionCoefficient,
+			restitution: entity.restitution,
+			linearDampingFactor: entity.linearDampingFactor,
+			angularDampeningFactor: entity.angularDampingFactor,
+		};
+	}
+
+	public static deserialize(data: SerializedEntity): Entity {
+		const entity = new Entity(data.positionX, data.positionY, data.radius, data.points);
+		entity.angle = data.angle;
+		entity.velocityX = data.velocityX;
+		entity.velocityY = data.velocityY;
+		entity.angularVelocity = data.angularVelocity;
+		entity.mass = data.mass;
+		entity.isStatic = data.isStatic;
+		entity.frictionCoefficient = data.frictionCoefficient;
+		entity.restitution = data.restitution;
+		entity.linearDampingFactor = data.linearDampingFactor;
+		entity.angularDampingFactor = data.angularDampeningFactor;
+		return entity;
+	}
+
+	public velocityX: number = 0;
+	public velocityY: number = 0;
 	public angularVelocity: number = 0;
-	private _mass: number = 1;
-	private _inertiaDirty: boolean = true;
-	private _inertia: number = 1;
-	private _radius: number = 1;
 	public isStatic: boolean = false;
 	public box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 	public points: number[] | null = null;
 	public frictionCoefficient: number = 0.6;
 	public restitution: number = 0.4;
 	public linearDampingFactor: number = 0.9;
-	public angularDampeningFactor: number = 0.9;
+	public angularDampingFactor: number = 0.9;
+	public quadTreeNodes: Set<QuadTree> = new Set<QuadTree>();
 	public readonly index: number = Entity.entityIndexTicker++;
+	private _positionX: number = 0;
+	private _positionY: number = 0;
+	private _angle: number = 0;
+	private _mass: number = 1;
+	private _inertiaDirty: boolean = true;
+	private _inertia: number = 1;
+	private _radius: number = 1;
 	public constructor(positionX: number, positionY: number, radius: number, points: number[] | null = null) {
-		this._position.x = positionX;
-		this._position.y = positionY;
+		this._positionX = positionX;
+		this._positionY = positionY;
 		this._radius = radius;
 		if (points === null) {
-			this.box.minX = this._position.x - radius;
-			this.box.minY = this._position.y - radius;
-			this.box.maxX = this._position.x + radius;
-			this.box.maxY = this._position.y + radius;
+			this.box.minX = this._positionX - radius;
+			this.box.minY = this._positionY - radius;
+			this.box.maxX = this._positionX + radius;
+			this.box.maxY = this._positionY + radius;
 		} else {
 			this.points = [];
 			const circle: Circle = computeMEC(points.slice());
 			const factor: number = circle.radius < 1e-9 ? 0 : this._radius / circle.radius;
 			for (let i: number = 0; i < points.length; i += 2) {
-				this.points.push(this._position.x + (points[i] - circle.x) * factor, this._position.y + (points[i + 1] - circle.y) * factor);
+				this.points.push(this._positionX + (points[i] - circle.x) * factor, this._positionY + (points[i + 1] - circle.y) * factor);
 			}
 			this.updateBox();
 		}
 	}
 
 	public get positionX(): number {
-		return this._position.x;
+		return this._positionX;
 	}
 
 	public set positionX(x: number) {
-		const distance: number = x - this._position.x;
-		this._position.x = x;
+		const distance: number = x - this._positionX;
+		this._positionX = x;
 		this.box.minX += distance;
 		this.box.maxX += distance;
 		if (this.points === null) {
@@ -60,12 +99,12 @@ export class Entity {
 	}
 
 	public get positionY(): number {
-		return this._position.y;
+		return this._positionY;
 	}
 
 	public set positionY(y: number) {
-		const distance: number = y - this._position.y;
-		this._position.y = y;
+		const distance: number = y - this._positionY;
+		this._positionY = y;
 		this.box.minY += distance;
 		this.box.maxY += distance;
 		if (this.points === null) {
@@ -93,10 +132,10 @@ export class Entity {
 		const cos: number = Math.cos(delta);
 		const sin: number = Math.sin(delta);
 		for (let i = 0; i < this.points.length; i += 2) {
-			const relativeX: number = this.points[i] - this._position.x;
-			const relativeY: number = this.points[i + 1] - this._position.y;
-			this.points[i] = this._position.x + relativeX * cos - relativeY * sin;
-			this.points[i + 1] = this._position.y + relativeX * sin + relativeY * cos;
+			const relativeX: number = this.points[i] - this._positionX;
+			const relativeY: number = this.points[i + 1] - this._positionY;
+			this.points[i] = this._positionX + relativeX * cos - relativeY * sin;
+			this.points[i + 1] = this._positionY + relativeX * sin + relativeY * cos;
 		}
 		this.updateBox();
 	}
@@ -118,24 +157,23 @@ export class Entity {
 		this._inertiaDirty = true;
 		if (this.points === null) {
 			this._radius = radius;
-			this.box.minX = this._position.x - radius;
-			this.box.minY = this._position.y - radius;
-			this.box.maxX = this._position.x + radius;
-			this.box.maxY = this._position.y + radius;
+			this.box.minX = this._positionX - radius;
+			this.box.minY = this._positionY - radius;
+			this.box.maxX = this._positionX + radius;
+			this.box.maxY = this._positionY + radius;
 			return;
 		}
 		const factor = radius / this._radius;
 		this._radius = radius;
 		for (let i: number = 0; i < this.points.length; i += 2) {
-			this.points[i] = this._position.x + (this.points[i] - this._position.x) * factor;
-			this.points[i + 1] = this._position.y + (this.points[i + 1] - this._position.y) * factor;
+			this.points[i] = this._positionX + (this.points[i] - this._positionX) * factor;
+			this.points[i + 1] = this._positionY + (this.points[i + 1] - this._positionY) * factor;
 		}
 		this.updateBox();
 	}
 
 	public get inertia(): number {
 		if (this._inertiaDirty) {
-			this._inertiaDirty = false;
 			this.updateInertia();
 		}
 		return this._inertia;
@@ -143,10 +181,10 @@ export class Entity {
 
 	private updateBox(): void {
 		if (this.points === null) {
-			this.box.minX = this._position.x - this._radius;
-			this.box.minY = this._position.y - this._radius;
-			this.box.maxX = this._position.x + this._radius;
-			this.box.maxY = this._position.y + this._radius;
+			this.box.minX = this._positionX - this._radius;
+			this.box.minY = this._positionY - this._radius;
+			this.box.maxX = this._positionX + this._radius;
+			this.box.maxY = this._positionY + this._radius;
 		} else {
 			this.box.minX = this.points[0];
 			this.box.minY = this.points[1];
@@ -179,20 +217,21 @@ export class Entity {
 		let area2Sum: number = 0;
 		let momentumSum: number = 0;
 		for (let i: number = 0, j: number = this.points.length - 2; i < this.points.length; j = i, i += 2) {
-			const currentPointX: number = this.points[i] - this._position.x;
-			const currentPointY: number = this.points[i + 1] - this._position.y;
-			const previousPointX: number = this.points[j] - this._position.x;
-			const previousPointY: number = this.points[j + 1] - this._position.y;
+			const currentPointX: number = this.points[i] - this._positionX;
+			const currentPointY: number = this.points[i + 1] - this._positionY;
+			const previousPointX: number = this.points[j] - this._positionX;
+			const previousPointY: number = this.points[j + 1] - this._positionY;
 			const cross: number = currentPointX * previousPointY - previousPointX * currentPointY;
 			area2Sum += cross;
 			momentumSum += cross * (currentPointX * currentPointX + currentPointX * previousPointX + previousPointX * previousPointX + currentPointY * currentPointY + currentPointY * previousPointY + previousPointY * previousPointY);
 		}
 		this._inertia = this._mass * momentumSum / 6 / area2Sum;
+		this._inertiaDirty = false;
 	}
 
 	public moveBy(distanceX: number, distanceY: number): void {
-		this._position.x += distanceX;
-		this._position.y += distanceY;
+		this._positionX += distanceX;
+		this._positionY += distanceY;
 		this.box.minX += distanceX;
 		this.box.maxX += distanceX;
 		this.box.minY += distanceY;
@@ -206,25 +245,35 @@ export class Entity {
 		}
 	}
 
+	public applyImpulse(impulseX: number, impulseY: number, contactX: number, contactY: number): void {
+		if (this.isStatic) {
+			return;
+		}
+		const inverseMass: number = 1 / this.mass;
+		this.velocityX += impulseX * inverseMass;
+		this.velocityY += impulseY * inverseMass;
+		this.angularVelocity += ((contactX - this._positionX) * impulseY - (contactY - this._positionY) * impulseX) * (1 / this.inertia);
+	}
+
 	public clearForces(): void {
-		this.positionalVelocity.x = 0;
-		this.positionalVelocity.y = 0;
+		this.velocityX = 0;
+		this.velocityY = 0;
 		this.angularVelocity = 0;
 	}
 
 	public isPointInside(pointX: number, pointY: number): boolean {
 		if (this.points === null) {
-			const distanceX = pointX - this._position.x;
-			const distanceY = pointY - this._position.y;
+			const distanceX = pointX - this._positionX;
+			const distanceY = pointY - this._positionY;
 			return (distanceX * distanceX + distanceY * distanceY) <= (this._radius * this._radius);
 		}
 		return isPointInPolygon(pointX, pointY, this.points);
 	}
 
 	public clone(): Entity {
-		const cloneEntity: Entity = new Entity(this._position.x, this._position.y, this._radius, null);
-		cloneEntity.positionalVelocity.x = this.positionalVelocity.x;
-		cloneEntity.positionalVelocity.y = this.positionalVelocity.y;
+		const cloneEntity: Entity = new Entity(this._positionX, this._positionY, this._radius, null);
+		cloneEntity.velocityX = this.velocityX;
+		cloneEntity.velocityY = this.velocityY;
 		cloneEntity.angle = this.angle;
 		cloneEntity.angularVelocity = this.angularVelocity;
 		cloneEntity.isStatic = this.isStatic;
@@ -242,18 +291,35 @@ export class Entity {
 		return cloneEntity;
 	}
 
-	public update(deltaTime: number): void {
-		if (Math.abs(this.positionalVelocity.x) > 1e-3) {
-			this.positionX += this.positionalVelocity.x * deltaTime;
-			this.positionalVelocity.x *= Math.pow(this.linearDampingFactor, deltaTime);
+	public earthlyShackles(box: Box): void {
+		if (this.positionX < box.minX) {
+			this.positionX = box.minX;
+			this.velocityX *= -this.restitution;
+		} else if (this.positionX > box.maxX) {
+			this.positionX = box.maxX;
+			this.velocityX *= -this.restitution;
 		}
-		if (Math.abs(this.positionalVelocity.y) > 1e-3) {
-			this.positionY += this.positionalVelocity.y * deltaTime;
-			this.positionalVelocity.y *= Math.pow(this.linearDampingFactor, deltaTime);
+		if (this.positionY < box.minY) {
+			this.positionY = box.minY;
+			this.velocityY *= -this.restitution;
+		} else if (this.positionY > box.maxY) {
+			this.positionY = box.maxY;
+			this.velocityY *= -this.restitution;
+		}
+	}
+
+	public update(deltaTime: number): void {
+		if (Math.abs(this.velocityX) > 1e-3) {
+			this.positionX += this.velocityX * deltaTime;
+			this.velocityX *= Math.pow(this.linearDampingFactor, deltaTime);
+		}
+		if (Math.abs(this.velocityY) > 1e-3) {
+			this.positionY += this.velocityY * deltaTime;
+			this.velocityY *= Math.pow(this.linearDampingFactor, deltaTime);
 		}
 		if (Math.abs(this.angularVelocity) > 1e-5) {
 			this.angle += this.angularVelocity * deltaTime;
-			this.angularVelocity *= Math.pow(this.angularDampeningFactor, deltaTime);
+			this.angularVelocity *= Math.pow(this.angularDampingFactor, deltaTime);
 		}
 	}
 }

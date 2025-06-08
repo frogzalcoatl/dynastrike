@@ -25,29 +25,29 @@ export class QuadTree {
 			bottomRight: new QuadTree({ minX: middleX, minY: middleY, maxX: this.box.maxX, maxY: this.box.maxY }, level)
 		};
 		for (let i: number = 0, length = this.entities.length; i < length; i++) {
-			this.insertEntity(this.entities[i]);
+			this.insert(this.entities[i]);
 		}
 		this.entities = [];
 	}
 
-	public insertEntity(entity: Entity): void {
+	public insert(entity: Entity): void {
 		if (this.children === null) {
 			this.entities.push(entity);
-			if (this.level !== 0 && this.entities.length > 11) {
+			if (this.level !== 0 && this.entities.length > 10) {
 				this.split();
 			}
 		} else {
 			if (boxesIntersect(this.children.topLeft.box, entity.box)) {
-				this.children.topLeft.insertEntity(entity);
+				this.children.topLeft.insert(entity);
 			}
 			if (boxesIntersect(this.children.topRight.box, entity.box)) {
-				this.children.topRight.insertEntity(entity);
+				this.children.topRight.insert(entity);
 			}
 			if (boxesIntersect(this.children.bottomLeft.box, entity.box)) {
-				this.children.bottomLeft.insertEntity(entity);
+				this.children.bottomLeft.insert(entity);
 			}
 			if (boxesIntersect(this.children.bottomRight.box, entity.box)) {
-				this.children.bottomRight.insertEntity(entity);
+				this.children.bottomRight.insert(entity);
 			}
 		}
 	}
