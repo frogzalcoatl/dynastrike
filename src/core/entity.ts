@@ -49,47 +49,58 @@ export class Entity {
 	public minY: number = 0;
 	public maxX: number = 0;
 	public maxY: number = 0;
-	public points: number[] | null = null;
 	public frictionCoefficient: number = 0.6;
 	public restitution: number = 0.4;
 	public linearDampingFactor: number = 0.9;
 	public angularDampingFactor: number = 0.9;
+	public points: number[] | null;
 	public readonly index: number = Entity.entityIndexTicker++;
-	private _positionX: number = 0;
-	private _positionY: number = 0;
 	private _angle: number = 0;
 	private _mass: number = 1;
 	private _inertiaDirty: boolean = true;
 	private _inertia: number = 1;
-	private _radius: number = 1;
-	private _pointCount: number;
+	private _positionX: number;
+	private _positionY: number;
+	private _radius: number;
 	public constructor(positionX: number, positionY: number, radius: number, points: number[] | null = null, scaleToEntity: boolean = true) {
-		this._positionX = positionX;
-		this._positionY = positionY;
-		this._radius = radius;
 		if (points === null) {
+			this.points = null;
+			this._positionX = positionX;
+			this._positionY = positionY;
+			this._radius = radius;
 			this.minX = this._positionX - radius;
 			this.minY = this._positionY - radius;
 			this.maxX = this._positionX + radius;
 			this.maxY = this._positionY + radius;
-			this._pointCount = 0;
 		} else {
-			this._pointCount = points.length;
 			if (scaleToEntity) {
 				this.points = [];
+				this._positionX = positionX;
+				this._positionY = positionY;
+				this._radius = radius;
 				const circle: Circle = computeMEC(points.slice());
-				const factor: number = this._radius / circle.radius;
-				for (let i: number = 0; i < this._pointCount; i += 2) {
-					this.points.push(this._positionX + (points[i] - circle.x) * factor, this._positionY + (points[i + 1] - circle.y) * factor);
+				const factor: number = radius / circle.radius;
+				for (let i: number = 0; i < points.length; i += 2) {
+					this.points.push(positionX + (points[i] - circle.x) * factor, positionY + (points[i + 1] - circle.y) * factor);
 				}
+				this.updateBox();
 			} else {
 				this.points = points.slice();
 				const circle = computeMEC(points.slice());
 				this._positionX = circle.x;
 				this._positionY = circle.y;
 				this._radius = circle.radius;
+				this.updateBox();
+				if (positionX !== 0) {
+					this.positionX += positionX;
+				}
+				if (positionY !== 0) {
+					this.positionY += positionY;
+				}
+				if (radius !== 1) {
+					this.radius += radius;
+				}
 			}
-			this.updateBox();
 		}
 	}
 
@@ -105,7 +116,7 @@ export class Entity {
 		if (this.points === null) {
 			return;
 		}
-		for (let i: number = 0; i < this._pointCount; i += 2) {
+		for (let i: number = 0; i < this.points.length; i += 2) {
 			this.points[i] += distance;
 		}
 	}
@@ -122,7 +133,7 @@ export class Entity {
 		if (this.points === null) {
 			return;
 		}
-		for (let i: number = 1; i < this._pointCount; i += 2) {
+		for (let i: number = 1; i < this.points.length; i += 2) {
 			this.points[i] += distance;
 		}
 	}
@@ -143,7 +154,7 @@ export class Entity {
 		}
 		const cos: number = Math.cos(delta);
 		const sin: number = Math.sin(delta);
-		for (let i = 0; i < this._pointCount; i += 2) {
+		for (let i = 0; i < this.points.length; i += 2) {
 			const relativeX: number = this.points[i] - this._positionX;
 			const relativeY: number = this.points[i + 1] - this._positionY;
 			this.points[i] = this._positionX + relativeX * cos - relativeY * sin;
@@ -177,7 +188,7 @@ export class Entity {
 		}
 		const factor = radius / this._radius;
 		this._radius = radius;
-		for (let i: number = 0; i < this._pointCount; i += 2) {
+		for (let i: number = 0; i < this.points.length; i += 2) {
 			this.points[i] = this._positionX + (this.points[i] - this._positionX) * factor;
 			this.points[i + 1] = this._positionY + (this.points[i + 1] - this._positionY) * factor;
 		}
@@ -202,7 +213,7 @@ export class Entity {
 			this.minY = this.points[1];
 			this.maxX = this.points[0];
 			this.maxY = this.points[1];
-			for (let i: number = 2; i < this._pointCount; i += 2) {
+			for (let i: number = 2; i < this.points.length; i += 2) {
 				const pointX: number = this.points[i];
 				const pointY: number = this.points[i + 1];
 				if (this.minX > pointX) {
@@ -228,7 +239,7 @@ export class Entity {
 		}
 		let area2Sum: number = 0;
 		let momentumSum: number = 0;
-		for (let i: number = 0, j: number = this._pointCount - 2; i < this._pointCount; j = i, i += 2) {
+		for (let i: number = 0, j: number = this.points.length - 2; i < this.points.length; j = i, i += 2) {
 			const currentPointX: number = this.points[i] - this._positionX;
 			const currentPointY: number = this.points[i + 1] - this._positionY;
 			const previousPointX: number = this.points[j] - this._positionX;
@@ -251,7 +262,7 @@ export class Entity {
 		if (this.points === null) {
 			return;
 		}
-		for (let i = 0; i < this._pointCount; i += 2) {
+		for (let i = 0; i < this.points.length; i += 2) {
 			this.points[i] += distanceX;
 			this.points[i + 1] += distanceY;
 		}
