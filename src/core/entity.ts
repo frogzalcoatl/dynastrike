@@ -53,7 +53,8 @@ export class Entity {
 	public restitution: number = 0.4;
 	public linearDampingFactor: number = 0.9;
 	public angularDampingFactor: number = 0.9;
-	public points: number[] | null;
+	public points: number[];
+	public isCircle: boolean;
 	public readonly index: number = Entity.entityIndexTicker++;
 	private _angle: number = 0;
 	private _mass: number = 1;
@@ -62,9 +63,10 @@ export class Entity {
 	private _positionX: number;
 	private _positionY: number;
 	private _radius: number;
-	public constructor(positionX: number, positionY: number, radius: number, points: number[] | null = null, scaleToEntity: boolean = true) {
-		if (points === null) {
-			this.points = null;
+	public constructor(positionX: number, positionY: number, radius: number, points?: number[], scaleToEntity: boolean = true) {
+		if (points === undefined) {
+			this.points = [];
+			this.isCircle = true;
 			this._positionX = positionX;
 			this._positionY = positionY;
 			this._radius = radius;
@@ -73,6 +75,7 @@ export class Entity {
 			this.maxX = this._positionX + radius;
 			this.maxY = this._positionY + radius;
 		} else {
+			this.isCircle = false;
 			if (scaleToEntity) {
 				this.points = [];
 				this._positionX = positionX;
@@ -113,7 +116,7 @@ export class Entity {
 		this._positionX = x;
 		this.minX += distance;
 		this.maxX += distance;
-		if (this.points === null) {
+		if (this.isCircle) {
 			return;
 		}
 		for (let i: number = 0; i < this.points.length; i += 2) {
@@ -130,7 +133,7 @@ export class Entity {
 		this._positionY = y;
 		this.minY += distance;
 		this.maxY += distance;
-		if (this.points === null) {
+		if (this.isCircle) {
 			return;
 		}
 		for (let i: number = 1; i < this.points.length; i += 2) {
@@ -149,7 +152,7 @@ export class Entity {
 		} else {
 			this._angle = angle;
 		}
-		if (this.points === null) {
+		if (this.isCircle) {
 			return;
 		}
 		const cos: number = Math.cos(delta);
@@ -178,7 +181,7 @@ export class Entity {
 
 	public set radius(radius: number) {
 		this._inertiaDirty = true;
-		if (this.points === null) {
+		if (this.isCircle) {
 			this._radius = radius;
 			this.minX = this._positionX - radius;
 			this.minY = this._positionY - radius;
@@ -203,7 +206,7 @@ export class Entity {
 	}
 
 	private updateBox(): void {
-		if (this.points === null) {
+		if (this.isCircle) {
 			this.minX = this._positionX - this._radius;
 			this.minY = this._positionY - this._radius;
 			this.maxX = this._positionX + this._radius;
@@ -233,7 +236,7 @@ export class Entity {
 	}
 
 	private updateInertia(): void {
-		if (this.points === null) {
+		if (this.isCircle) {
 			this._inertia = 0.5 * this._mass * this._radius * this._radius;
 			return;
 		}
@@ -259,7 +262,7 @@ export class Entity {
 		this.maxX += distanceX;
 		this.minY += distanceY;
 		this.maxY += distanceY;
-		if (this.points === null) {
+		if (this.isCircle) {
 			return;
 		}
 		for (let i = 0; i < this.points.length; i += 2) {
@@ -285,7 +288,7 @@ export class Entity {
 	}
 
 	public isPointInside(pointX: number, pointY: number): boolean {
-		if (this.points === null) {
+		if (this.isCircle) {
 			const distanceX = pointX - this._positionX;
 			const distanceY = pointY - this._positionY;
 			return (distanceX * distanceX + distanceY * distanceY) <= (this._radius * this._radius);
@@ -294,7 +297,7 @@ export class Entity {
 	}
 
 	public clone(): Entity {
-		const cloneEntity: Entity = new Entity(this._positionX, this._positionY, this._radius, null);
+		const cloneEntity: Entity = new Entity(this._positionX, this._positionY, this._radius);
 		cloneEntity.velocityX = this.velocityX;
 		cloneEntity.velocityY = this.velocityY;
 		cloneEntity.angle = this.angle;
@@ -307,7 +310,7 @@ export class Entity {
 		cloneEntity._mass = this._mass;
 		cloneEntity._inertiaDirty = this._inertiaDirty;
 		cloneEntity._inertia = this._inertia;
-		if (this.points === null) {
+		if (this.isCircle) {
 			return cloneEntity;
 		}
 		cloneEntity.points = this.points.slice();

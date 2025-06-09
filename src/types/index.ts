@@ -51,7 +51,7 @@ export interface SerializedEntity {
 	velocityX: number;
 	velocityY: number;
 	radius: number;
-	points: number[] | null;
+	points?: number[];
 	angle: number;
 	angularVelocity: number;
 	mass: number;

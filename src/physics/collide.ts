@@ -112,9 +112,6 @@ export class Collision {
 	}
 
 	public static collidePolygonCircle(polygonEntity: Entity, circleEntity: Entity): boolean {
-		if (polygonEntity.points === null) {
-			return false;
-		}
 		const closestPoint: ClosestPoint = findClosestPointOnPolygonToCircle(polygonEntity.points, circleEntity.positionX, circleEntity.positionY);
 		if (isPointInPolygon(circleEntity.positionX, circleEntity.positionY, polygonEntity.points)) {
 			const distance: number = Math.sqrt(closestPoint.distanceSquared);
@@ -151,9 +148,6 @@ export class Collision {
 	}
 
 	public static collidePolygonPolygon(instanceEntity: Entity, otherEntity: Entity): boolean {
-		if (instanceEntity.points === null || otherEntity.points === null) {
-			return false;
-		}
 		let minimumOverlap: number = Infinity;
 		let overlapNormalX: number = 0;
 		let overlapNormalY: number = 0;
@@ -198,13 +192,13 @@ export class Collision {
 	}
 
 	public static collide(instance: Entity, other: Entity): boolean {
-		if (instance.points === null) {
-			if (other.points === null) {
+		if (instance.isCircle) {
+			if (other.isCircle) {
 				return this.collideCircleCircle(instance, other);
 			}
 			return this.collidePolygonCircle(other, instance);
 		}
-		if (other.points === null) {
+		if (other.isCircle) {
 			return this.collidePolygonCircle(instance, other);
 		}
 		return this.collidePolygonPolygon(instance, other);
