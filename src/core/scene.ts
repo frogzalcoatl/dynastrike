@@ -53,17 +53,23 @@ export class Scene {
 		for (const instance of this.entities.values()) {
 			const instanceIndex: number = instance.index;
 			instance.update();
-			const potentialColliders: SetIterator<Entity> = this.grid.query(instance.minX, instance.minY, instance.maxX, instance.maxY).values();
+			const potentialColliders: Set<Entity> = this.grid.query(instance.minX, instance.minY, instance.maxX, instance.maxY);
 			this.grid.insert(instance);
-			for (const other of potentialColliders) {
-				const pairIndex: number = this.getPairIndex(instanceIndex, other.index);
-				if (processedCollisions.has(pairIndex) || (instance.isStatic && other.isStatic)) {
-					continue;
-				}
-				processedCollisions.add(pairIndex);
-				Collision.collide(instance, other);
-				if (!other.isStatic) {
-					other.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
+			if (potentialColliders.size !== 0) {
+				for (const other of potentialColliders.values()) {
+					const otherIndex: number = other.index;
+					const pairIndex: number = instanceIndex < otherIndex ? (otherIndex << 16) | instanceIndex : (instanceIndex << 16) | otherIndex;
+					if (processedCollisions.has(pairIndex)) {
+						continue;
+					}
+					processedCollisions.add(pairIndex);
+					if (instance.isStatic && other.isStatic) {
+						continue;
+					}
+					Collision.collide(instance, other);
+					if (!other.isStatic) {
+						other.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
+					}
 				}
 			}
 			if (!instance.isStatic) {
@@ -71,16 +77,12 @@ export class Scene {
 			}
 		}
 		for (let i: number = this.joints.length - 1; i >= 0; i--) {
-			const joint = this.joints[i];
+			const joint: BaseJoint = this.joints[i];
 			joint.update();
 			if (joint.broken) {
 				this.joints[i] = this.joints[this.joints.length - 1];
 				this.joints.pop();
 			}
 		}
-	}
-
-	public getPairIndex(instanceIndex: number, otherIndex: number): number {
-		return instanceIndex < otherIndex ? otherIndex * otherIndex + instanceIndex : instanceIndex * instanceIndex + otherIndex;
 	}
 }

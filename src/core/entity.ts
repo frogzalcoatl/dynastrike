@@ -49,8 +49,8 @@ export class Entity {
 	public minY: number = 0;
 	public maxX: number = 0;
 	public maxY: number = 0;
-	public frictionCoefficient: number = 0.6;
-	public restitution: number = 0.4;
+	public frictionCoefficient: number = 0;
+	public restitution: number = 1;
 	public linearDampingFactor: number = 1;
 	public angularDampingFactor: number = 1;
 	public points: number[];

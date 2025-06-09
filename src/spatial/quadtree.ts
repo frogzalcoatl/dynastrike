@@ -80,10 +80,12 @@ export class QuadTree {
 			this.childBottomRight!.query(minX, minY, maxX, maxY, result);
 		} else {
 			const entitiesCount: number = this.entities.length;
-			for (let i: number = 0; i < entitiesCount; i++) {
-				const entity = this.entities[i];
-				if (entity.minX < maxX && entity.maxX > minX && entity.minY < maxY && entity.maxY > minY) {
-					result.add(entity);
+			if (entitiesCount !== 0) {
+				for (let i: number = 0; i < entitiesCount; i++) {
+					const entity = this.entities[i];
+					if (entity.minX < maxX && entity.maxX > minX && entity.minY < maxY && entity.maxY > minY) {
+						result.add(entity);
+					}
 				}
 			}
 		}
