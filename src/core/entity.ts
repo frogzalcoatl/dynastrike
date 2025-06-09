@@ -51,8 +51,8 @@ export class Entity {
 	public maxY: number = 0;
 	public frictionCoefficient: number = 0.6;
 	public restitution: number = 0.4;
-	public linearDampingFactor: number = 0.9;
-	public angularDampingFactor: number = 0.9;
+	public linearDampingFactor: number = 1;
+	public angularDampingFactor: number = 1;
 	public points: number[];
 	public isCircle: boolean;
 	public readonly index: number = Entity.entityIndexTicker++;

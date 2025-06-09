@@ -47,9 +47,9 @@
 			scene.addEntity(entity);
 			entity.angle = Math.PI * 2 * random.next().value;
 		}
-		const wormLength = 10;
+		const wormLength = 250;
 		const wormRadius = 30;
-		const wormSpacing = 70;
+		const wormSpacing = 61;
 		let wormEntities = [];
 		for (let i = 0; i < wormLength; i++) {
 			const segment = new Dynastrike.Entity(i * wormSpacing, 0, wormRadius);
@@ -199,23 +199,55 @@
 			mixColorCache.set(key, result);
 			return result;
 		}
-		const gridOffscreenCanvas = new OffscreenCanvas(1024, 1024);
+		const gridOffscreenCanvas = new OffscreenCanvas(2048, 2048);
 		const gctx = gridOffscreenCanvas.getContext("2d");
-		gctx.clearRect(0, 0, gridOffscreenCanvas.width, gridOffscreenCanvas.height);
+		gctx.fillStyle = "#708040";
+		gctx.fillRect(0, 0, gridOffscreenCanvas.width, gridOffscreenCanvas.height);
 		gctx.strokeStyle = "#405010";
 		gctx.lineWidth = 1;
-		for (let x = 0; x <= gridOffscreenCanvas.width; x += 32) {
+		gctx.scale(2, 2);
+		for (let i = 0; i < 400; i++) {
+			const x = Math.random() * gridOffscreenCanvas.width;
+			const y = Math.random() * gridOffscreenCanvas.height;
+			const r = Math.random() * 2 + 0.5;
+			gctx.fillStyle = `rgba(80, 90, 50, ${Math.random() * 0.2})`;
 			gctx.beginPath();
-			gctx.moveTo(x, 0);
-			gctx.lineTo(x, gridOffscreenCanvas.height);
+			gctx.arc(x, y, r, 0, Math.PI * 2);
+			gctx.fill();
+		}
+		for (let i = 0; i < 750; i++) {
+			const x = Math.random() * 1024;
+			const y = Math.random() * 1024;
+			const w = Math.random() * 24 + 8;
+			const h = Math.random() * 8 + 2;
+			gctx.save();
+			gctx.translate(x, y);
+			gctx.rotate(Math.random() * Math.PI * 2);
+			gctx.fillStyle = `rgba(40, 40, 20, 0.2)`;
+			gctx.fillRect(-w / 2, -h / 2, w, h);
+			gctx.restore();
+		}
+		for (let i = 0; i < 150; i++) {
+			const x = Math.random() * 1024;
+			const y = Math.random() * 1024;
+			const radius = Math.random() * 40 + 20;
+			const hue = 60 + Math.random() * 20;
+			gctx.beginPath();
+			gctx.arc(x, y, radius, 0, Math.PI * 2);
+			gctx.fillStyle = `hsla(${hue}, 30%, 30%, 0.05)`;
+			gctx.fill();
+		}
+		gctx.strokeStyle = "rgba(0, 0, 0, 0.25)";
+		gctx.lineWidth = 1;
+		for (let i = 0; i < 15; i++) {
+			const cx = Math.random() * 1024;
+			const cy = Math.random() * 1024;
+			const r = Math.random() * 500 + 100;
+			gctx.beginPath();
+			gctx.arc(cx, cy, r, 0, Math.PI * 2);
 			gctx.stroke();
 		}
-		for (let y = 0; y <= gridOffscreenCanvas.height; y += 32) {
-			gctx.beginPath();
-			gctx.moveTo(0, y);
-			gctx.lineTo(gridOffscreenCanvas.width, y);
-			gctx.stroke();
-		}
+
 		function drawBackground() {
 			const zoomFactor = Math.pow(2, cameraRenderRatio);
 			const viewMinX = cameraX - (canvasElement.width / 2) * zoomFactor;
@@ -226,20 +258,20 @@
 			const backgroundMinY = Math.max(scene.minY, viewMinY);
 			const backgroundMaxX = Math.min(scene.maxX, viewMaxX);
 			const backgroundMaxY = Math.min(scene.maxY, viewMaxY);
-			ctx.fillStyle = "#708040";
-			ctx.fillRect(backgroundMinX, backgroundMinY, backgroundMaxX - backgroundMinX, backgroundMaxY - backgroundMinY);
 			const pattern = ctx.createPattern(gridOffscreenCanvas, "repeat");
 			ctx.fillStyle = pattern;
 			ctx.fillRect(backgroundMinX, backgroundMinY, backgroundMaxX - backgroundMinX, backgroundMaxY - backgroundMinY);
 		}
-		const colors = ["#AAAA00", "#202020", "#7fa97a", "#e09e3e", "#e06666", "#b06b8e", "#7a66b3", "#bfa13a", "#66a3a3", "#a184c6"];
+		const colors = ["#FF4C4C", "#3FA34D", "#3C91E6", "#FFD93D", "#FF6F91", "#6A4C93", "#FF9F1C", "#2EC4B6", "#C1292E", "#9BC53D"];
+
 		function drawEntities() {
 			const zoomFactor = Math.pow(2, cameraRenderRatio);
 			const viewEntities = scene.query(cameraX - (canvasElement.width / 2) * zoomFactor, cameraY - (canvasElement.height / 2) * zoomFactor, cameraX + (canvasElement.width / 2) * zoomFactor, cameraY + (canvasElement.height / 2) * zoomFactor);
 			for (const entity of viewEntities) {
 				const color = colors[entity.index % colors.length];
 				ctx.fillStyle = color;
-				//ctx.strokeStyle = mixColor(color, "#000000", 0.35);
+				ctx.strokeStyle = mixColor(color, "#000000", 0.35);
+				ctx.lineWidth = entity.radius * 0.2;
 				ctx.beginPath();
 				if (entity.isCircle) {
 					ctx.arc(entity.positionX, entity.positionY, entity.radius, 0, Math.PI * 2);
@@ -250,10 +282,14 @@
 					}
 				}
 				ctx.closePath();
+				ctx.save();
+				ctx.clip();
 				ctx.fill();
+				ctx.stroke();
+				ctx.restore();
 				if (cameraRatio < 3) {
 					ctx.strokeStyle = "#000000";
-					ctx.lineWidth = 0;
+					ctx.lineWidth = 1;
 					ctx.beginPath();
 					ctx.moveTo(entity.positionX, entity.positionY);
 					ctx.lineTo(entity.positionX + Math.cos(entity.angle) * entity.radius, entity.positionY + Math.sin(entity.angle) * entity.radius);

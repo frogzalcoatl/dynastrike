@@ -50,15 +50,6 @@ export class Scene {
 	public update(): void {
 		this.grid.clear();
 		const processedCollisions: Set<number> = new Set<number>();
-		let i: number = 0;
-		for (let i: number = this.joints.length - 1; i >= 0; i--) {
-			const joint = this.joints[i];
-			joint.update();
-			if (joint.broken) {
-				this.joints[i] = this.joints[this.joints.length - 1];
-				this.joints.pop();
-			}
-		}
 		for (const instance of this.entities.values()) {
 			const instanceIndex: number = instance.index;
 			instance.update();
@@ -77,6 +68,14 @@ export class Scene {
 			}
 			if (!instance.isStatic) {
 				instance.earthlyShackles(this.minX, this.minY, this.maxX, this.maxY);
+			}
+		}
+		for (let i: number = this.joints.length - 1; i >= 0; i--) {
+			const joint = this.joints[i];
+			joint.update();
+			if (joint.broken) {
+				this.joints[i] = this.joints[this.joints.length - 1];
+				this.joints.pop();
 			}
 		}
 	}
