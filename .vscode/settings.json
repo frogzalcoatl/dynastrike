@@ -7,6 +7,7 @@
 	"editor.formatOnPaste": true,
 	"editor.formatOnSave": true,
 	"editor.formatOnType": true,
+	"editor.wordWrap": "on",
 	"editor.insertSpaces": false,
 	"editor.renderControlCharacters": true,
 	"editor.tabSize": 4,

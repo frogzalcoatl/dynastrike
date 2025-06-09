@@ -3,7 +3,7 @@ import { addPolygonAxes, findClosestPointOnPolygonToCircle, findContactPoints, i
 import { ClosestPoint, ContactPoints } from "../types";
 
 export class Collision {
-	private static resolve(instance: Entity, other: Entity, normalX: number, normalY: number, penetration: number, contactX: number, contactY: number): void {
+	public static resolve(instance: Entity, other: Entity, normalX: number, normalY: number, penetration: number, contactX: number, contactY: number): void {
 		const overlapCorrectionX: number = normalX * penetration;
 		const overlapCorrectionY: number = normalY * penetration;
 		if (instance.isStatic) {

@@ -5,6 +5,7 @@
 		"moduleResolution": "NodeNext",
 		"rootDir": "./src",
 		"declaration": true,
+		"stripInternal": true,
 		"emitDeclarationOnly": true,
 		"outDir": "types",
 		"strict": true,

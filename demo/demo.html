@@ -39,7 +39,7 @@
 			//() => Dynastrike.generateStar(0, 0, 1, 1, 0.5, 3 + Math.floor(4 * random.next().value)),
 			//() => Dynastrike.generateHeart(0, 0, 1, 10 + 10 * Math.floor(4 * random.next().value))
 		]
-		for (let i = 0; i < 1000; i++) {
+		for (let i = 0; i < 0; i++) {
 			const x = scene.minX + random.next().value * (scene.maxX - scene.minX);
 			const y = scene.minY + random.next().value * (scene.maxY - scene.minY);
 			const radius = 20 + 50 * random.next().value;
@@ -47,12 +47,28 @@
 			scene.addEntity(entity);
 			entity.angle = Math.PI * 2 * random.next().value;
 		}
-		let playerEntity = new Dynastrike.Entity(0, 0, 100);
-		playerEntity.isStatic = true;
-		const otherEntity = new Dynastrike.Entity(0, 0, 1, [0, 0, 100, 0, 0, 100], false);
-		otherEntity.isStatic = true;
-		scene.addEntity(otherEntity);
-		scene.addEntity(playerEntity);
+		const wormLength = 10;
+		const wormRadius = 30;
+		const wormSpacing = 70;
+		let wormEntities = [];
+		for (let i = 0; i < wormLength; i++) {
+			const segment = new Dynastrike.Entity(i * wormSpacing, 0, wormRadius);
+			segment.mass = 1;
+			scene.addEntity(segment);
+			wormEntities.push(segment);
+			if (i > 0) {
+				const joint = new Dynastrike.DistanceJoint(
+					wormEntities[i - 1], segment,
+					wormEntities[i - 1].positionX, wormEntities[i - 1].positionY,
+					segment.positionX, segment.positionY,
+					wormSpacing,
+					100
+				);
+				scene.addJoint(joint);
+			}
+		}
+		let playerEntity = wormEntities[0];
+		playerEntity.mass = 100;
 		for (let i = 0; i < generators.length * 4; i++) {
 			const x = scene.minX + random.next().value * (scene.maxX - scene.minX);
 			const y = scene.minY + random.next().value * (scene.maxY - scene.minY);
@@ -91,16 +107,16 @@
 		});
 		function playerInput() {
 			if (commands & 1) {
-				playerEntity.velocityY -= 2;
+				playerEntity.velocityY -= 0.25;
 			}
 			if (commands & 2) {
-				playerEntity.velocityY += 2;
+				playerEntity.velocityY += 0.25;
 			}
 			if (commands & 4) {
-				playerEntity.velocityX -= 2;
+				playerEntity.velocityX -= 0.25;
 			}
 			if (commands & 8) {
-				playerEntity.velocityX += 2;
+				playerEntity.velocityX += 0.25;
 			}
 			if (commands & 16) {
 				playerEntity.angularVelocity += 0.0025;
@@ -281,8 +297,9 @@
 			let y = 0;
 			ctx.fillText(`scene update: ${sceneUpdateTime.toFixed(1)}mspt (avg: ${avgScene.toFixed(1)})`, 10, y += 20);
 			ctx.fillText(`render: ${renderTime.toFixed(1)}mspt (avg: ${avgRender.toFixed(1)})`, 10, y += 20);
+			requestAnimationFrame(animationFrame);
 		}
-		animationInterval = setInterval(animationFrame, 1000 / 144);
+		requestAnimationFrame(animationFrame);
 	</script>
 </body>
 

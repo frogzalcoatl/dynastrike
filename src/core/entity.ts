@@ -5,7 +5,7 @@ import { Circle, SerializedEntity } from "../types";
 const TAU: number = Math.PI * 2;
 
 export class Entity {
-	private static entityIndexTicker: number = 1;
+	public static entityIndexTicker: number = 1;
 
 	public static serialize(entity: Entity): SerializedEntity {
 		return {
@@ -22,7 +22,7 @@ export class Entity {
 			frictionCoefficient: entity.frictionCoefficient,
 			restitution: entity.restitution,
 			linearDampingFactor: entity.linearDampingFactor,
-			angularDampingFactor: entity.angularDampingFactor,
+			angularDampingFactor: entity.angularDampingFactor
 		};
 	}
 
@@ -56,13 +56,13 @@ export class Entity {
 	public points: number[];
 	public isCircle: boolean;
 	public readonly index: number = Entity.entityIndexTicker++;
-	private _angle: number = 0;
-	private _mass: number = 1;
-	private _inertiaDirty: boolean = true;
-	private _inertia: number = 1;
-	private _positionX: number;
-	private _positionY: number;
-	private _radius: number;
+	public _angle: number = 0;
+	public _mass: number = 1;
+	public _inertiaDirty: boolean = true;
+	public _inertia: number = 1;
+	public _positionX: number;
+	public _positionY: number;
+	public _radius: number;
 	public constructor(positionX: number, positionY: number, radius: number, points?: number[], scaleToEntity: boolean = true) {
 		if (points === undefined) {
 			this.points = [];
@@ -205,7 +205,7 @@ export class Entity {
 		return this._inertia;
 	}
 
-	private updateBox(): void {
+	public updateBox(): void {
 		if (this.isCircle) {
 			this.minX = this._positionX - this._radius;
 			this.minY = this._positionY - this._radius;
@@ -235,7 +235,7 @@ export class Entity {
 		}
 	}
 
-	private updateInertia(): void {
+	public updateInertia(): void {
 		if (this.isCircle) {
 			this._inertia = 0.5 * this._mass * this._radius * this._radius;
 			return;
@@ -340,16 +340,13 @@ export class Entity {
 
 	public update(): void {
 		if (Math.abs(this.velocityX) > 1e-3) {
-			this.positionX += this.velocityX;
-			this.velocityX *= this.linearDampingFactor;
+			this.positionX += this.velocityX *= this.linearDampingFactor;
 		}
 		if (Math.abs(this.velocityY) > 1e-3) {
-			this.positionY += this.velocityY;
-			this.velocityY *= this.linearDampingFactor;
+			this.positionY += this.velocityY *= this.linearDampingFactor;
 		}
 		if (Math.abs(this.angularVelocity) > 1e-5) {
-			this.angle += this.angularVelocity;
-			this.angularVelocity *= this.angularDampingFactor;
+			this.angle += this.angularVelocity *= this.angularDampingFactor;
 		}
 	}
 }

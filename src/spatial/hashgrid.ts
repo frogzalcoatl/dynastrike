@@ -1,4 +1,4 @@
-// Consider switching to this if I can't figure out how to make a dynamic quadtree.
+/*// Consider switching to this if I can't figure out how to make a dynamic quadtree.
 
 import { Entity } from "../core/entity";
 import { Scene } from "../core/scene";
@@ -6,7 +6,7 @@ import { Collision } from "../physics/collide";
 import { Box } from "../types";
 
 export class HashGrid {
-	private static stride: number = 67108863;
+	public static stride: number = 67108863;
 
 	public cells: Map<number, Entity[]> = new Map();
 	public scene: Scene;
@@ -81,11 +81,11 @@ export class HashGrid {
 		this.cells.clear();
 	};
 
-	private getPairIndex(instanceIndex: number, otherIndex: number): number {
+	public getPairIndex(instanceIndex: number, otherIndex: number): number {
 		return instanceIndex < otherIndex ? otherIndex * otherIndex + instanceIndex : instanceIndex * instanceIndex + otherIndex;
 	}
 
-	private earthlyShackles(entity: Entity): void {
+	public earthlyShackles(entity: Entity): void {
 		if (entity.positionX < this.scene.box.minX) {
 			entity.positionX = this.scene.box.minX;
 			entity.velocityX *= -entity.restitution;
@@ -101,4 +101,4 @@ export class HashGrid {
 			entity.velocityY *= -entity.restitution;
 		}
 	}
-};
+};*/

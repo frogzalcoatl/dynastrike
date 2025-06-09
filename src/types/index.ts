@@ -61,7 +61,3 @@ export interface SerializedEntity {
 	linearDampingFactor: number;
 	angularDampingFactor: number;
 }
-
-export interface IJoint {
-	update(deltaTime: number): void;
-}
