@@ -181,11 +181,30 @@ export class Collision {
 			return false;
 		}
 		const contactPointResult: ContactPoints = findContactPoints(instanceEntity.points, otherEntity.points);
-		let finalContactX: number = contactPointResult.x;
-		let finalContactY: number = contactPointResult.y;
+		let finalContactX: number = 0;
+		let finalContactY: number = 0;
+		let useFallbackContactPoint: boolean = false;
 		if (contactPointResult.count === 0) {
+			useFallbackContactPoint = true;
+		} else {
+			const centerDistanceX: number = otherEntity.positionX - instanceEntity.positionX;
+			const centerDistanceY: number = otherEntity.positionY - instanceEntity.positionY;
+			const centerDistanceSquared: number = centerDistanceX * centerDistanceX + centerDistanceY * centerDistanceY;
+			if (centerDistanceSquared > 1e-9) {
+				const inverseCenterDistance: number = 1 / Math.sqrt(centerDistanceSquared);
+				if (overlapNormalX * (centerDistanceX * inverseCenterDistance) + overlapNormalY * (centerDistanceY * inverseCenterDistance) > 0.99) {
+					useFallbackContactPoint = true;
+				}
+			} else {
+				useFallbackContactPoint = true;
+			}
+		}
+		if (useFallbackContactPoint) {
 			finalContactX = (instanceEntity.positionX + otherEntity.positionX) * 0.5;
 			finalContactY = (instanceEntity.positionY + otherEntity.positionY) * 0.5;
+		} else {
+			finalContactX = contactPointResult.x;
+			finalContactY = contactPointResult.y;
 		}
 		this.resolve(instanceEntity, otherEntity, overlapNormalX, overlapNormalY, minimumOverlap, finalContactX, finalContactY);
 		return true;
