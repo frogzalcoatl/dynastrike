@@ -1,4 +1,3 @@
-import { QuadTree } from "../spatial/quadtree";
 
 export type BoundaryBuffer = number[];
 
@@ -30,13 +29,6 @@ export interface Projection {
 	x: number;
 	y: number;
 	distanceSquared: number;
-}
-
-export interface QuadTreeChildren {
-	topLeft: QuadTree;
-	topRight: QuadTree;
-	bottomLeft: QuadTree;
-	bottomRight: QuadTree;
 }
 
 export interface ContactPoints {

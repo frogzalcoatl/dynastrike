@@ -59,7 +59,7 @@ export class QuadTree {
 			}
 		} else {
 			this.entities.push(entity);
-			if (this.level > 0 && this.entities.length > 10) {
+			if (this.level > 0 && this.entities.length > 12) {
 				this.split();
 			}
 		}
